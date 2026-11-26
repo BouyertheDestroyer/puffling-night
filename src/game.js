@@ -114,6 +114,7 @@ export class Game {
     const fwd = this.cam.flatForward(), right = { x: -fwd.z, z: fwd.x };
     let my = input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']), mx = input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
     if (pad) { mx += pad.lx; my -= pad.ly; }
+    mx += input.stick.x; my -= input.stick.y;
     const interact = input.hit('KeyE', 'Mouse0') || (pad && pad.hit('a'));
     const carKey = input.hit('KeyF', 'Enter') || (pad && pad.hit('y'));
     if (input.hit('KeyC') || (pad && pad.hit('rb'))) player.sneak = !player.sneak;
@@ -121,9 +122,9 @@ export class Game {
     let prompt = '';
     if (player.inCar) {
       // ---------------------------------- driving
-      const thr = Math.max(input.down('KeyW', 'ArrowUp') ? 1 : 0, pad ? pad.rt : 0);
-      const brk = Math.max(input.down('KeyS', 'ArrowDown') ? 1 : 0, pad ? pad.lt : 0);
-      let steer = input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']); if (pad) steer += pad.lx;
+      const thr = Math.max(input.down('KeyW', 'ArrowUp') ? 1 : 0, pad ? pad.rt : 0, -input.stick.y);
+      const brk = Math.max(input.down('KeyS', 'ArrowDown') ? 1 : 0, pad ? pad.lt : 0, input.stick.y);
+      let steer = input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']) + input.stick.x; if (pad) steer += pad.lx;
       const exiting = !!player.seq;
       car.update(dt, exiting ? { throttle: 0, brake: 0, steer: 0, handbrake: true } : { throttle: thr, brake: brk, steer: clamp(steer, -1, 1), handbrake: input.down('Space') || (pad && pad.now.b) });
       if (input.hit('KeyQ') || (pad && pad.hit('x'))) this.audio.horn();

@@ -47,3 +47,19 @@ button { font: inherit; cursor: pointer; border: 0; border-radius: 8px; }
   #stars svg { width: 26px; height: 26px; }
   #prompt { font-size: 16px; }
 }
+
+/* touch controls */
+#touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; user-select: none; -webkit-user-select: none; }
+body.touch canvas#c { touch-action: none; }
+#tbtns button { pointer-events: auto; touch-action: none; }
+#stickBase { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.25); display: none; }
+#stickBase.on { display: block; }
+#stickKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.4); }
+#tbtns { position: fixed; right: 16px; bottom: 16px; display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; direction: rtl; }
+#tbtns button { width: 64px; height: 64px; border-radius: 50%; background: rgba(20,26,34,.55); color: #fff; font-size: 15px; border: 2px solid rgba(255,255,255,.3); direction: ltr; }
+#tbtns button.big { font-size: 26px; font-weight: 700; background: rgba(255,211,74,.35); }
+#tbtns button.on { background: rgba(255,255,255,.35); }
+body.touch #mini { left: auto; right: 16px; top: 108px; bottom: auto; width: 150px; height: 150px; }
+body.touch #prompt { bottom: 26%; }
+body.touch #caption { bottom: auto; top: 24%; }
+html, body { touch-action: none; }

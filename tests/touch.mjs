@@ -1,0 +1,23 @@
+import { firefox } from 'playwright';
+const b = await firefox.launch({ headless: false });
+const ctx = await b.newContext({ viewport: { width: 900, height: 600 }, hasTouch: true });
+const p = await ctx.newPage();
+const errs = []; p.on('pageerror', e => errs.push(e.message));
+await p.goto('http://localhost:5199/?play&fixed');
+await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+await p.waitForTimeout(1000);
+await p.touchscreen.tap(450, 300);
+await p.waitForTimeout(300);
+const vis = await p.evaluate(() => !document.getElementById('touch')?.hidden);
+// tap E: take the box
+await p.evaluate(() => { window.__ev = []; for (const t of ['pointerdown','pointerup','touchstart','click']) document.querySelector('#tbtns button.big').addEventListener(t, e => __ev.push(t + ':' + (e.pointerType||''))); });
+const box = await p.locator('#tbtns button.big').boundingBox(); console.log(JSON.stringify(box));
+console.log(await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e.tagName + '#' + e.id + '.' + e.className; }, [box.x + 30, box.y + 30]));
+await p.evaluate(() => { const I = __game.input; const orig = I.endFrame.bind(I); window.__seen = []; I.endFrame = () => { if (I.pressed.size) __seen.push([...I.pressed].join('+')); orig(); }; });
+await p.touchscreen.tap(box.x + 30, box.y + 30);
+await p.waitForTimeout(200); console.log('seen', await p.evaluate(() => JSON.stringify(__seen)));
+await p.waitForTimeout(400);
+const where = await p.evaluate(() => __game.boxWhere + ' overlay=' + __game.overlay + ' prompt=' + document.getElementById('prompt').textContent + ' seq=' + !!__game.player.seq + ' action=' + !!__game.player.action);
+await p.screenshot({ path: process.argv[2] + '/touch.png' });
+console.log(await p.evaluate(() => JSON.stringify(__ev))); console.log('overlay visible', vis, 'box', where, errs.join(';') || 'no errors');
+await b.close();

@@ -15,11 +15,61 @@ export class Input {
       if (!this.locked) return;
       this.mdx += e.movementX; this.mdy += e.movementY; this.lastMouse = performance.now();
     });
-    addEventListener('mousedown', e => { if (this.locked) this.pressed.add('Mouse' + e.button); });
+    addEventListener('pointerdown', e => { if (this.locked && e.pointerType === 'mouse') this.pressed.add('Mouse' + e.button); });
     document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === canvas; });
     this.pad = null; this.padPrev = {};
+    this.stick = { x: 0, y: 0 };
+    // touch controls appear the first time the screen is touched
+    this.touch = false; this.touchWanted = false;
+    addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch' || this.touch) return;
+      this.touch = true; this.setupTouch(); this.showTouch(this.touchWanted);
+    }, true);
   }
-  lock() { if (!this.locked) this.canvas.requestPointerLock?.()?.catch?.(() => {}); }
+  // On-screen controls: a stick wherever the left thumb lands, drag on the right to look, buttons.
+  setupTouch() {
+    document.body.classList.add('touch');
+    const el = document.createElement('div'); el.id = 'touch'; el.hidden = true;
+    el.innerHTML = `<div id="stickBase"><div id="stickKnob"></div></div>
+      <div id="tbtns"><button data-k="KeyE" class="big">E</button><button data-k="KeyF">Car</button>
+      <button data-k="Space" data-hold="1">Brake</button><button data-k="ShiftLeft" data-hold="1">Run</button><button data-k="KeyM">Map</button></div>`;
+    document.body.appendChild(el);
+    this.touchEl = el;
+    const base = el.querySelector('#stickBase'), knob = el.querySelector('#stickKnob');
+    let stickId = null, lookId = null, sx = 0, sy = 0, lx = 0, ly = 0;
+    const R = 55;
+    addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch' || el.hidden || e.target.closest('button, .screen, #tools, #skip')) return;
+      if (e.clientX < innerWidth * 0.45 && stickId === null) {
+        stickId = e.pointerId; sx = e.clientX; sy = e.clientY;
+        base.style.left = sx + 'px'; base.style.top = sy + 'px'; base.classList.add('on');
+      } else if (lookId === null) { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; }
+    });
+    addEventListener('pointermove', e => {
+      if (e.pointerId === stickId) {
+        let dx = e.clientX - sx, dy = e.clientY - sy; const d = Math.hypot(dx, dy);
+        if (d > R) { dx *= R / d; dy *= R / d; }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        this.stick.x = dx / R; this.stick.y = dy / R;
+      } else if (e.pointerId === lookId) {
+        this.mdx += (e.clientX - lx) * 1.6; this.mdy += (e.clientY - ly) * 1.6; lx = e.clientX; ly = e.clientY;
+        this.lastMouse = performance.now();
+      }
+    });
+    const up = e => {
+      if (e.pointerId === stickId) { stickId = null; this.stick.x = this.stick.y = 0; knob.style.transform = ''; base.classList.remove('on'); }
+      if (e.pointerId === lookId) lookId = null;
+    };
+    addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    for (const b of el.querySelectorAll('button')) {
+      const k = b.dataset.k;
+      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.pressed.add(k); this.keys.add(k); b.classList.add('on'); });
+      const rel = () => { this.keys.delete(k); b.classList.remove('on'); };
+      b.addEventListener('pointerup', rel); b.addEventListener('pointercancel', rel); b.addEventListener('pointerleave', rel);
+    }
+  }
+  showTouch(on) { this.touchWanted = on; if (this.touchEl) this.touchEl.hidden = !on; }
+  lock() { if (!this.locked && !this.touch) { try { this.canvas.requestPointerLock?.()?.catch?.(() => {}); } catch {} } }
   unlock() { if (this.locked) document.exitPointerLock?.(); }
   down(...codes) { return codes.some(c => this.keys.has(c)); }
   hit(...codes) { return codes.some(c => this.pressed.has(c)); }

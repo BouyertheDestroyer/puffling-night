@@ -55,7 +55,8 @@ function startGame() {
   fadeIn = 1.6; E.grade.uniforms.uFade.value = 1;
   $('title').hidden = true; $('hud').hidden = false; $('skip').hidden = true;
   ui.toast('Find the stranded pufflings', 3);
-  ui.caption('Take the box from the car (E), catch the pufflings, then drive them to the cliff.', 7);
+  input.showTouch(true);
+  ui.caption(input.touch || navigator.maxTouchPoints > 0 ? 'Take the box from the car (E), catch the pufflings, then drive them to the cliff. Left thumb moves, drag on the right to look.' : 'Take the box from the car (E), catch the pufflings, then drive them to the cliff.', 7);
   input.lock();
 }
 function startIntro() {
@@ -66,7 +67,7 @@ function startIntro() {
 playBtn.onclick = () => { startIntro(); };
 $('skipIntroBtn').onclick = () => { audio.start(); startGame(); };
 $('skip').onclick = () => startGame();
-canvas.addEventListener('click', () => { if (mode === 'play' && !game.overlay) input.lock(); });
+canvas.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && mode === 'play' && !game.overlay) input.lock(); });
 $('helpBtn').onclick = () => { if (mode === 'play') game.toggleOverlay('help'); else $('help').hidden = !$('help').hidden; };
 $('helpClose').onclick = () => { if (mode === 'play') { game.toggleOverlay('help'); input.lock(); } else $('help').hidden = true; };
 $('muteBtn').onclick = () => { audio.setMuted(!audio.muted); $('muteBtn').textContent = audio.muted ? '🔇' : '🔊'; };
@@ -74,7 +75,7 @@ $('fullBtn').onclick = () => { if (document.fullscreenElement) document.exitFull
 $('resumeBtn').onclick = () => { game.toggleOverlay('pause'); input.lock(); };
 document.addEventListener('pointerlockchange', () => {
   // losing the pointer lock with Esc pauses the game
-  if (mode === 'play' && !document.pointerLockElement && !game.overlay && game.wasLocked) game.toggleOverlay('pause');
+  if (mode === 'play' && !input.touch && !document.pointerLockElement && !game.overlay && game.wasLocked) game.toggleOverlay('pause');
   game.wasLocked = !!document.pointerLockElement;
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play' && !game.overlay) game.toggleOverlay('pause'); });
