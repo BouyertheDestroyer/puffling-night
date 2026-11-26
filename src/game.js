@@ -153,6 +153,7 @@ export class Game {
     if (inCarView) { target = car.pos.clone(); target.y += 1.5; heading = car.heading; }
     else { target = player.pos.clone(); target.y += 1.45; heading = player.heading; }
     this.cam.update(dt, { target, heading, inCar: inCarView, speed: car.speed, mdx: input.mdx, mdy: input.mdy, padX: pad ? pad.rx : 0, padY: pad ? pad.ry : 0, now: performance.now() });
+    if (window.__camOverride) { const o = window.__camOverride; this.E.camera.position.set(...o.pos); this.E.camera.lookAt(...o.look); }
 
     // --- world systems
     const focus = inCarView ? car.pos : player.pos;

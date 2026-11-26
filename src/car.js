@@ -115,8 +115,8 @@ function carGeometryParts() {
   }
   // bumpers & trim
   const box = (sx, sy, sz, x, y, z) => { const g = new THREE.BoxGeometry(sx, sy, sz); g.translate(x, y, z); return g.toNonIndexed(); };
-  P.black.push(box(1.84, 0.2, 0.18, 0, 0.5, 2.14), box(1.84, 0.2, 0.18, 0, 0.5, -2.15));
-  P.black.push(box(0.9, 0.22, 0.06, 0, 0.74, 2.19)); // grille
+  P.black.push(box(1.86, 0.2, 0.18, 0, 0.5, 2.24), box(1.86, 0.2, 0.18, 0, 0.5, -2.24));
+  P.black.push(box(0.9, 0.2, 0.06, 0, 0.74, 2.27)); // grille
   for (const [z, r] of [[1.31, 0.47], [-1.31, 0.47]]) for (const x of [-0.92, 0.92]) {
     const arch = new THREE.TorusGeometry(r, 0.045, 6, 20, Math.PI * 0.86); arch.rotateY(Math.PI / 2); arch.rotateX(Math.PI * 0.07);
     arch.translate(x, 0.36, z); P.black.push(arch.toNonIndexed());
@@ -124,10 +124,10 @@ function carGeometryParts() {
   P.black.push(box(0.03, 0.05, 2.3, 0.93, 0.47, 0), box(0.03, 0.05, 2.3, -0.93, 0.47, 0));
   // lights
   for (const x of [-0.62, 0.62]) {
-    P.head.push(box(0.38, 0.12, 0.06, x, 0.88, 2.15));
-    P.tail.push(box(0.3, 0.16, 0.05, x * 1.18, 0.95, -2.2));
+    P.head.push(box(0.38, 0.12, 0.06, x, 0.86, 2.27));
+    P.tail.push(box(0.3, 0.16, 0.05, x * 1.18, 0.92, -2.29));
   }
-  P.plate.push(box(0.52, 0.12, 0.02, 0, 0.62, 2.235), box(0.52, 0.12, 0.02, 0, 0.72, -2.255));
+  P.plate.push(box(0.52, 0.12, 0.02, 0, 0.6, 2.33), box(0.52, 0.12, 0.02, 0, 0.72, -2.31));
   // mirrors
   for (const x of [-1, 1]) { P.paint.push(box(0.2, 0.12, 0.1, x * 1.0, 1.12, 0.78)); P.black.push(box(0.15, 0.12, 0.04, x * 0.92, 1.12, 0.82)); }
   // interior: seats, dashboard, wheel
@@ -239,7 +239,7 @@ export class Car {
     this.heads = [];
     for (const x of [-0.62, 0.62]) {
       const l = new THREE.SpotLight(0xfff1dc, 0, 60, 0.5, 0.5, 1.6);
-      l.position.set(x, 0.88, 2.1);
+      l.position.set(x, 0.86, 2.35);
       l.target.position.set(x * 1.5, 0.0, 14);
       this.root.add(l, l.target);
       this.heads.push(l);
@@ -368,7 +368,7 @@ export class Car {
     }
     // door
     if (dt) this.doorOpen = damp(this.doorOpen, this.doorTarget, 7, dt);
-    this.model.doorPivot.rotation.y = this.doorOpen * 1.15;
+    this.model.doorPivot.rotation.y = -this.doorOpen * 1.15;
     this.model.opening.visible = this.doorOpen > 0.05;
     // brake / reverse lights
     this.model.M.tail.emissiveIntensity = this.braking ? 5 : this.lightsOn ? 1.6 : 0.15;

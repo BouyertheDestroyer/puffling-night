@@ -48,9 +48,11 @@ let mode = 'title';
 const playBtn = $('playBtn');
 playBtn.disabled = false; playBtn.textContent = 'Play';
 $('skipIntroBtn').hidden = false;
+let fadeIn = 0;
 function startGame() {
   mode = 'play';
   intro.end();
+  fadeIn = 1.6; E.grade.uniforms.uFade.value = 1;
   $('title').hidden = true; $('hud').hidden = false; $('skip').hidden = true;
   ui.toast('Find the stranded pufflings', 3);
   ui.caption('Take the box from the car (E), catch the pufflings, then drive them to the cliff.', 7);
@@ -87,7 +89,10 @@ let fpsN = 0, fpsT = 0, slow = 0;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
-  if (mode === 'play') game.update(dt);
+  if (mode === 'play') {
+    game.update(dt);
+    if (fadeIn > 0) { fadeIn = Math.max(0, fadeIn - dt); E.grade.uniforms.uFade.value = Math.min(1, fadeIn / 1.2); }
+  }
   else if (mode === 'intro') { if (intro.update(dt)) startGame(); }
   else { // title: slow drift over the town
     const a = t * 0.02;

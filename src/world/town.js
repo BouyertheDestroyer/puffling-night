@@ -4,6 +4,8 @@ import { GeoBuilder, col } from '../geo.js';
 import { height, shoreS, cliffT, Grid, HARBOUR, coastX } from './layout.js';
 import { A, pbr, modelMeshes } from '../assets.js';
 import { rng, fbm } from '../noise.js';
+import { buildBoat } from './boats.js';
+import { model } from '../assets.js';
 
 // ---------------------------------------------------------------- materials
 function windowAtlas() {
@@ -59,7 +61,7 @@ export function townMaterials() {
       #endif`);
   };
   wall.onBeforeCompile = lumTrick;
-  const roof = pbr('corrugated_iron_02', { vertexColors: true, roughness: 0.55, normal: 1.4 });
+  const roof = pbr('corrugated_iron_02', { vertexColors: true, roughness: 0.55, normal: 0.7 });
   roof.onBeforeCompile = lumTrick;
   const plaster = pbr('white_plaster_rough_01', { vertexColors: true });
   const trim = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, vertexColors: true });
@@ -477,6 +479,49 @@ export function buildTown(L, E) {
   // harbour: a wooden pier and lifebuoys
   const harbour = buildHarbour(L, M, r, addBox);
   group.add(harbour);
+  // fishing boats moored along the pier, lifebuoys, a buoy at the harbour mouth, old lamps on the pier
+  const boats = [];
+  {
+    const P = L.pier, c = Math.cos(P.ang), s = Math.sin(P.ang);
+    const spots = [[-8, 1], [10, 1], [2, -1]];
+    spots.forEach(([along, side], i) => {
+      const boat = buildBoat([0x2a4a7a, 0xa8322a, 0x2f6a4a][i], i + 1);
+      const off = (P.hd + 2.5) * side;
+      boat.position.set(P.x + c * along - s * off, 0, P.z + s * along + c * off);
+      boat.rotation.y = -P.ang + (i === 1 ? Math.PI : 0);
+      group.add(boat); boats.push(boat);
+      addBox(boat.position.x, boat.position.z, 6.5, 2.2, P.ang);
+    });
+    for (const [along, side] of [[-14, 1], [6, -1], [18, 1]]) {
+      const lb = model('lifebuoy', 0.75);
+      const off = (P.hd + 0.05) * side;
+      lb.position.set(P.x + c * along - s * off, P.top + 0.25, P.z + s * along + c * off);
+      lb.rotation.set(Math.PI / 2, 0, -P.ang); lb.rotateX(-Math.PI / 2); lb.rotateY(side > 0 ? 0 : Math.PI);
+      group.add(lb);
+    }
+    for (const along of [-12, 12]) {
+      const lp = model('street_lamp_01', 3.4);
+      const x = P.x + c * along - s * (P.hd - 0.35) * 1, z = P.z + s * along + c * (P.hd - 0.35);
+      lp.position.set(x, P.top, z); group.add(lp);
+      lampSources.push({ pos: new THREE.Vector3(x, P.top + 3.1, z), color: 0xffc080, intensity: 25, distance: 18 });
+      addCircle(x, z, 0.2);
+    }
+    const buoy = model('ocean_buoy', 2.4);
+    buoy.position.set(P.x - c * 45, -0.4, P.z - s * 45 + 25); group.add(buoy); boats.push(buoy);
+    buoy.userData.phase = 3;
+  }
+  // cardboard boxes stacked by the harbour sheds
+  for (const b of L.buildings.filter(b => b.type === 'shed').slice(0, 4)) {
+    const c = Math.cos(b.ang), s = Math.sin(b.ang);
+    for (let k = 0; k < 3; k++) {
+      const bx = model('cardboard_box_01', 0.45);
+      const u = b.w / 2 + 0.6, v = -b.d / 2 + 0.6 + k * 0.6;
+      bx.position.set(b.x + u * c - v * s, height(b.x + u * c - v * s, b.z + u * s + v * c), b.z + u * s + v * c);
+      bx.rotation.y = r.range(0, 6.28);
+      if (k === 2) { bx.position.y += 0.45; bx.position.z -= s * 0.6; bx.position.x += c * 0; }
+      group.add(bx);
+    }
+  }
 
   // lighthouse
   const lh = L.buildings.find(b => b.type === 'lighthouse');
@@ -497,7 +542,22 @@ export function buildTown(L, E) {
   }
   E.setLampSources(lampSources);
 
+  // an old lamp on the cliff lookout
+  {
+    const lk = L.lookout;
+    const x = lk.x - lk.seaDir.x * 4.4 + lk.seaDir.z * 3.2, z = lk.z - lk.seaDir.z * 4.4 - lk.seaDir.x * 3.2;
+    const lp = model('street_lamp_01', 3.4); const y = height(x, z);
+    lp.position.set(x, y, z); group.add(lp);
+    lampSources.push({ pos: new THREE.Vector3(x, y + 3.1, z), color: 0xffc080, intensity: 30, distance: 20 });
+    addCircle(x, z, 0.2);
+  }
   group.userData.update = (t, camera) => {
+    for (const b of boats) {
+      const ph = b.userData.phase ?? 0;
+      b.position.y = Math.sin(t * 0.9 + ph) * 0.12 - (b.userData.sink ?? 0);
+      b.rotation.x = Math.sin(t * 0.7 + ph) * 0.025;
+      b.rotation.z = Math.sin(t * 0.6 + ph * 2) * 0.02;
+    }
     lighthouse.userData.update(t);
     if (group.userData.halo) group.userData.halo.uniforms.uScale.value = E.renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   };
