@@ -1,0 +1,6 @@
+node_modules/
+dist/
+tools/raw/
+tmp/
+test-results/
+BRIEF.md
