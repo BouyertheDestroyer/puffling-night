@@ -142,7 +142,7 @@ export class UI {
   setBox(count, where) {
     this.$('boxinfo').textContent = `Box: ${count}/6` + (where === 'car' ? ' (in the car)' : where === 'hands' ? '' : '');
   }
-  prompt(text) { if (document.body.classList.contains('touch')) text = text.replace(/bF  /g, 'Car  '); const p = this.$('prompt'); if (p.textContent !== text) p.textContent = text; p.style.opacity = text ? 1 : 0; }
+  prompt(text) { if (document.body.classList.contains('touch')) text = text.replace(/\bF  /g, 'Car  '); const p = this.$('prompt'); if (p.textContent !== text) p.textContent = text; p.style.opacity = text ? 1 : 0; }
   toast(text, secs = 3) { const t = this.$('toast'); t.innerHTML = text; t.style.opacity = 1; this.toastT = secs; }
   caption(text, secs = 4) { const c = this.$('caption'); c.textContent = text; c.style.opacity = text ? 1 : 0; this.captionT = secs; }
   update(dt) {
