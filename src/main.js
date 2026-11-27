@@ -6,6 +6,7 @@ import { buildTerrain, makeHeightTexture } from './world/terrain.js';
 import { buildSky } from './world/sky.js';
 import { buildOcean } from './world/ocean.js';
 import { buildTown } from './world/town.js';
+import { buildGrass } from './world/grass.js';
 import { createWorld } from './world/physics.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
@@ -38,6 +39,7 @@ const ocean = buildOcean(heightTex); E.scene.add(ocean);
 }
 const town = buildTown(L, E); E.scene.add(town.group);
 const world = createWorld(L, town);
+const grass = buildGrass(L, terrain); E.scene.add(grass);
 const input = new Input(canvas);
 const audio = new Audio();
 const game = new Game({ E, L, world, town, input, audio, ui, sky, ocean });
@@ -105,6 +107,7 @@ function frame() {
     sky.update(E.camera, t, E.renderer.getPixelRatio());
     ocean.update(E.camera, t);
     town.group.userData.update(t, E.camera);
+    const t0 = performance.now(); grass.update(E.camera.position, t); const gt = performance.now() - t0; if (gt > 4) window.__grassMs = Math.max(window.__grassMs || 0, gt);
   }
   E.composer.render();
   // frame rate and adaptive resolution

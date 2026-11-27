@@ -133,8 +133,13 @@ export class Player {
     this.scene.attach(this.root);
     const p = this.root.getWorldPosition(new THREE.Vector3());
     this.pos.set(p.x, this.world.ground(p.x, p.z), p.z);
-    // face away from the car
     const f = car.forward;
+    // if the driver's side is water or a wall, step out on the passenger side instead
+    if (this.world.ground(p.x, p.z) < 0.3 || this.world.blocked(p.x, p.z, 0.3, { static: true })) {
+      const ox = car.pos.x * 2 - p.x, oz = car.pos.z * 2 - p.z;
+      if (this.world.ground(ox, oz) >= 0.3) this.pos.set(ox, this.world.ground(ox, oz), oz);
+    }
+    // face away from the car
     this.heading = Math.atan2(-f.x, f.y); // = left of the car's forward
     this.inCar = false;
     this.sync();

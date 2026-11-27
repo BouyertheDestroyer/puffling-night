@@ -425,6 +425,35 @@ export function buildTown(L, E) {
     group.userData.halo = m;
   }
 
+  // faint cones of light in the damp air under each lamp
+  {
+    const cone = new THREE.ConeGeometry(3.6, 7.2, 24, 1, true);
+    cone.translate(0, -3.6, 0); // apex at the lamp head
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      uniforms: {},
+      vertexShader: `varying float vH; varying float vEdge; varying float vDist;
+        void main(){
+          vec4 wp = instanceMatrix * vec4(position, 1.0);
+          vec4 mv = modelViewMatrix * wp;
+          vH = clamp(-position.y / 7.2, 0.0, 1.0);
+          vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+          vEdge = abs(dot(n, normalize(-mv.xyz)));
+          vDist = -mv.z;
+          gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying float vH; varying float vEdge; varying float vDist;
+        void main(){
+          float a = (1.0 - vH) * (1.0 - vH) * pow(vEdge, 2.0) * 0.05;
+          a *= smoothstep(1.0, 6.0, vDist) * (1.0 - smoothstep(60.0, 140.0, vDist));
+          gl_FragColor = vec4(vec3(1.0, 0.7, 0.4) * a, 1.0); }`,
+    });
+    const im = new THREE.InstancedMesh(cone, mat, L.lamps.length);
+    const d = new THREE.Object3D();
+    L.lamps.forEach((l, i) => { d.position.set(l.head.x, l.head.y - 0.15, l.head.z); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+    im.frustumCulled = false; im.renderOrder = 3; im.name = 'lampCones';
+    group.add(im);
+  }
+
   // props along sidewalks
   const propDefs = [
     { id: 'metal_trash_can', h: 0.95, n: 50, r: 0.35 },

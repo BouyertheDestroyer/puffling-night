@@ -93,6 +93,13 @@ tRough = mix(tRough*0.55, tRough, smoothstep(0.2, 1.5, vWP.y)); // wet near the 
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(tNW, 0.0)).xyz);');
   };
   const mesh = new THREE.Mesh(g, mat);
+  // fast height lookup matching the mesh (bilinear over the same grid)
+  mesh.userData.sample = (x, z) => {
+    const fx = (x - WORLD.minX) / step, fz = (z - WORLD.minZ) / step;
+    const i = Math.max(0, Math.min(nx - 2, Math.floor(fx))), j = Math.max(0, Math.min(nz - 2, Math.floor(fz)));
+    const u = fx - i, v = fz - j, h = (a, b) => pos[((j + b) * nx + i + a) * 3 + 1];
+    return (h(0, 0) * (1 - u) + h(1, 0) * u) * (1 - v) + (h(0, 1) * (1 - u) + h(1, 1) * u) * v;
+  };
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
   return mesh;
