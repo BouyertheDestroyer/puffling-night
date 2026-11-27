@@ -13,7 +13,7 @@ export const TEXTURES = [
   'dark_rock', 'gravel_road',
 ];
 export const MODELS = [
-  'cardboard_box_01', 'street_lamp_01', 'stone_fire_pit', 'boulder_01', 'metal_trash_can',
+  'cardboard_box_01', 'street_lamp_01', 'stone_fire_pit', 'metal_trash_can',
   'painted_wooden_bench', 'lifebuoy', 'rock_moss_set_01', 'utility_box_01', 'fire_hydrant',
   'coast_rocks_01', 'ocean_buoy',
 ];

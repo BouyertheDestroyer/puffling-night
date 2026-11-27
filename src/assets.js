@@ -22,7 +22,7 @@ function loadTex(url, srgb) {
 
 export const TEXTURES = ['asphalt_02', 'concrete_pavement', 'corrugated_iron_02', 'aerial_grass_rock', 'cliff_side',
   'coast_sand_rocks_02', 'white_plaster_rough_01', 'wood_planks_grey', 'dark_rock', 'gravel_road'];
-export const MODELS = ['cardboard_box_01', 'street_lamp_01', 'stone_fire_pit', 'boulder_01', 'metal_trash_can',
+export const MODELS = ['cardboard_box_01', 'street_lamp_01', 'stone_fire_pit', 'metal_trash_can',
   'painted_wooden_bench', 'lifebuoy', 'rock_moss_set_01', 'utility_box_01', 'fire_hydrant', 'coast_rocks_01', 'ocean_buoy'];
 
 export async function loadAll(onProgress = () => {}) {

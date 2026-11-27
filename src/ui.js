@@ -27,7 +27,7 @@ export class UI {
 </div>
 <div id="caption"></div>
 <button id="skip" hidden>Skip intro ›</button>
-<div id="mapScreen" class="screen" hidden><canvas id="bigmap" width="900" height="900"></canvas><p>M or Esc to close</p></div>
+<div id="mapScreen" class="screen" hidden><canvas id="bigmap" width="900" height="900"></canvas><button id="mapClose" class="secondary">Close map (M)</button></div>
 <div id="help" class="screen" hidden>
   <div class="cols">
     <section><h2>On foot</h2><ul>
@@ -46,6 +46,7 @@ export class UI {
       <li>The more you save, the more stars you earn.</li>
       <li><b>M</b>: map · <b>H</b>: this help · <b>Esc</b>: pause</li></ul></section>
   </div>
+  <p class="pad touchonly">Touch: put your left thumb down anywhere on the left to move or drive, drag on the right to look around, and use the buttons for E, the car, the brake, running and the map.</p>
   <p class="pad">Gamepad: left stick move/steer, right stick look, RT/LT drive, A interact, Y car, B handbrake, Back map.</p>
   <button id="helpClose">Back to the night</button>
 </div>

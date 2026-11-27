@@ -55,6 +55,8 @@ function startGame() {
   mode = 'play';
   intro.end();
   fadeIn = 1.6; E.grade.uniforms.uFade.value = 1;
+  $('help').hidden = true; $('mapScreen').hidden = true;
+  input.endFrame(); input.keys.clear();
   $('title').hidden = true; $('hud').hidden = false; $('skip').hidden = true;
   ui.toast('Find the stranded pufflings', 3);
   input.showTouch(true);
@@ -75,6 +77,7 @@ $('helpClose').onclick = () => { if (mode === 'play') { game.toggleOverlay('help
 $('muteBtn').onclick = () => { audio.setMuted(!audio.muted); $('muteBtn').textContent = audio.muted ? '🔇' : '🔊'; };
 $('fullBtn').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); };
 $('resumeBtn').onclick = () => { game.toggleOverlay('pause'); input.lock(); };
+$('mapClose').onclick = () => { if (game.overlay === 'map') game.toggleOverlay('map'); input.lock(); };
 document.addEventListener('pointerlockchange', () => {
   // losing the pointer lock with Esc pauses the game
   if (mode === 'play' && !input.touch && !document.pointerLockElement && !game.overlay && game.wasLocked) game.toggleOverlay('pause');
@@ -96,7 +99,7 @@ function frame() {
     game.update(dt);
     if (fadeIn > 0) { fadeIn = Math.max(0, fadeIn - dt); E.grade.uniforms.uFade.value = Math.min(1, fadeIn / 1.2); }
   }
-  else if (mode === 'intro') { if (intro.update(dt)) startGame(); }
+  else if (mode === 'intro') { if (intro.update(dt)) startGame(); else input.endFrame(); }
   else { // title: slow drift over the town
     const a = t * 0.02;
     E.camera.position.set(L.carStart.x + Math.cos(a) * 160, 70, L.carStart.z + Math.sin(a) * 160);

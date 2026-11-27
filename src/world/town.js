@@ -502,7 +502,7 @@ export function buildTown(L, E) {
     addCircle(x, z, big ? 1.1 * t.s : 0.5 * t.s);
   }
   scatter(group, modelMeshes('coast_rocks_01', 2.2), shore, 160);
-  scatter(group, modelMeshes('boulder_01', 1.4), boulders, 160);
+  scatter(group, modelMeshes('coast_rocks_01', 1.3), boulders, 160);
   scatter(group, modelMeshes('rock_moss_set_01', 0.6), moss, 160, { cast: false });
 
   // harbour: a wooden pier and lifebuoys

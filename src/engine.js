@@ -48,7 +48,7 @@ export function createEngine(canvas) {
   scene.environmentRotation = new THREE.Euler(0, 1.2, 0);
 
   // moonlight
-  const moon = new THREE.DirectionalLight(0xaec4ff, 0.55);
+  const moon = new THREE.DirectionalLight(0xaec4ff, 0.7);
   moon.castShadow = true;
   moon.shadow.mapSize.set(2048, 2048);
   const S = 70;

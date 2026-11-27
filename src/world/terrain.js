@@ -77,6 +77,7 @@ vec3 pr = vWP / 9.0;
 vec2 pg = vWP.xz / 7.0, ps = vWP.xz / 6.0;
 vec3 cG = texture2D(tGrassD, pg).rgb * mix(0.75, 1.15, macro);
 vec3 cR = tri(tRockD, pr, bl).rgb;
+cR = mix(vec3(dot(cR, vec3(0.3, 0.59, 0.11))), cR, 0.3) * vec3(0.78, 0.78, 0.82); // dark volcanic rock
 vec3 cS = texture2D(tSandD, ps).rgb;
 vec3 col = cG*grassW + cR*rockW + cS*sandW;
 col *= mix(0.55, 1.0, smoothstep(-6.0, 0.0, vWP.y)); // darker under water

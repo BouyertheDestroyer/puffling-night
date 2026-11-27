@@ -219,6 +219,7 @@ export class Intro {
     for (const l of this.E.pool) l.visible = true;
     this.sky.userData.uniforms.uSpin.value = 0;
     this.sky.userData.uniforms.uAurora.value = 1;
+    this.sky.userData.uniforms.uBright.value = 1;
     this.E.grade.uniforms.uFade.value = 0;
     this.audio.stopMusic(); this.audio.crackle(false);
     this.ui.caption('', 0);
@@ -257,7 +258,7 @@ export class Intro {
     this.fireLight.intensity = fireOn ? 26 + Math.sin(t * 17) * 5 + Math.sin(t * 7.3) * 4 : 0;
     this.flameMat.uniforms.uTime.value = t;
     this.audio.crackle(fireOn && t < 22);
-    if (fireOn) this.audio.crackleTick();
+    if (fireOn) this.audio.crackleTick(dt);
     this.caveman.anim.update(dt, { speed: 0, wave: t > 11.5 && t < 14 });
     const hk = smoothstep(16.2, 17.6, t);
     this.house.visible = hk > 0;

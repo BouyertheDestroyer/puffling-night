@@ -12,7 +12,6 @@ redistribute, attribution not required but given here with thanks. They were dow
 | Model | [Cardboard Box 01](https://polyhaven.com/a/cardboard_box_01) | Rahul Chaudhary | CC0 1.0 |
 | Model | [Street Lamp 01](https://polyhaven.com/a/street_lamp_01) | Josh Dean | CC0 1.0 |
 | Model | [Stone Fire Pit](https://polyhaven.com/a/stone_fire_pit) | Sebastian Platen | CC0 1.0 |
-| Model | [Boulder 01](https://polyhaven.com/a/boulder_01) | Rico Cilliers | CC0 1.0 |
 | Model | [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) | GurJas Studios | CC0 1.0 |
 | Model | [Painted Wooden Bench](https://polyhaven.com/a/painted_wooden_bench) | Kirill Sannikov | CC0 1.0 |
 | Model | [Lifebuoy](https://polyhaven.com/a/lifebuoy) | Hank Kaamura | CC0 1.0 |

@@ -148,5 +148,5 @@ export class Audio {
     if (on && !this.fire) this.fire = this.loopNoise(this.white, 'highpass', 2500, 0.0);
     if (this.fire) this.fire.g.gain.setTargetAtTime(on ? 0.03 : 0, this.ctx.currentTime, 0.4);
   }
-  crackleTick() { if (this.fire && Math.random() < 0.3) this.noiseBurst(0.1, 3500, 0.02); }
+  crackleTick(dt = 1 / 60) { if (this.fire && Math.random() < 18 * dt) this.noiseBurst(0.1, 3500, 0.02); }
 }

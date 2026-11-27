@@ -153,7 +153,7 @@ export class Pufflings {
     const live = this.list.filter(p => ['idle', 'waddle', 'flee', 'arriving'].includes(p.state)).length;
     this.spawnTimer -= dt;
     if (live < this.target && this.spawnTimer <= 0) {
-      const s = this.findSpawn(player, 50);
+      const s = this.findSpawn(player ? (player.inCar && car ? car.pos : player.pos) : null, 50);
       if (s) this.spawn(s.x, s.z, true);
       this.spawnTimer = 6;
     }
@@ -200,6 +200,7 @@ export class Pufflings {
       return;
     }
     // ---- on the ground
+    if (p.frozen > 0) { p.frozen -= dt; this.flapWings(p, dt, 0, 0); this.place(p); return; }
     const threats = [];
     if (player && !player.inCar) threats.push({ x: player.pos.x, z: player.pos.z, r: player.noiseRadius });
     if (car && Math.abs(car.speed) > 1) threats.push({ x: car.pos.x, z: car.pos.z, r: 7 });

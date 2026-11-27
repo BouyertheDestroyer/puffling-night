@@ -297,6 +297,8 @@ export class Car {
     // lateral grip
     const grip = this.handbrake ? 1.6 : 9;
     vl *= Math.exp(-grip * dt);
+    // a parked car (nobody driving, or someone getting in or out) stays put
+    if (input && input.parked && Math.abs(vf) < 2) { vf = 0; vl = 0; }
     // yaw
     const targetYaw = vf / CAR_DIMS.wheelBase * Math.tan(this.steer) * (this.handbrake ? 1.35 : 1);
     this.yawRate = damp(this.yawRate, targetYaw, this.handbrake ? 3 : 10, dt);
@@ -305,25 +307,26 @@ export class Car {
     this.vel.set(f2.x * vf + r2.x * vl, f2.y * vf + r2.y * vl);
     // integrate with collision
     const nx = this.pos.x + this.vel.x * dt, nz = this.pos.z + this.vel.y * dt;
-    const prevH = this.pos.y;
+    const prevH = this.pos.y, px0 = this.pos.x, pz0 = this.pos.z;
     this.pos.x = nx; this.pos.z = nz;
-    this.collide(prevH);
+    this.collide(prevH, px0, pz0);
     this.speed = this.vel.dot(this.forward);
     this.updateTransform(dt);
   }
-  collide(prevH) {
+  collide(prevH, px0, pz0) {
     const W = this.world;
+    // water or a sudden drop: go back to where we were and bounce off it
+    const bad = () => this.circles().some(c => { const h = W.ground(c.x, c.z); return h < 0.25 || h < prevH - 2.2; });
+    if (bad()) {
+      this.pos.x = px0; this.pos.z = pz0;
+      const sp = this.vel.length();
+      this.vel.multiplyScalar(-0.25);
+      if (sp > 4) this.onCrash?.(sp * 0.5);
+    }
     for (let iter = 0; iter < 2; iter++) {
       for (const c of this.circles()) {
         const push = W.pushOut(c.x, c.z, c.r, { car: this });
-        // ground that is water or a sudden drop counts as a wall
-        const h = W.ground(c.x, c.z);
-        let px = push.x, pz = push.z;
-        if (h < 0.25 || h < prevH - 2.2) {
-          // push back towards where we came from
-          const back = new THREE.Vector2(-this.vel.x, -this.vel.y);
-          if (back.lengthSq() > 1e-6) { back.normalize(); px += back.x * 0.25; pz += back.y * 0.25; }
-        }
+        const px = push.x, pz = push.z;
         if (px || pz) {
           this.pos.x += px; this.pos.z += pz;
           const nl = Math.hypot(px, pz), nxx = px / nl, nzz = pz / nl;

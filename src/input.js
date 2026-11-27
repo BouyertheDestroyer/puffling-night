@@ -22,8 +22,15 @@ export class Input {
     // touch controls appear the first time the screen is touched
     this.touch = false; this.touchWanted = false;
     addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'touch' || this.touch) return;
-      this.touch = true; this.setupTouch(); this.showTouch(this.touchWanted);
+      if (e.pointerType === 'touch' && !this.touch) {
+        this.touch = true;
+        if (!this.touchEl) this.setupTouch();
+        document.body.classList.add('touch'); this.showTouch(this.touchWanted);
+      } else if (e.pointerType === 'mouse' && this.touch) {
+        // back on the mouse (a touch-screen laptop): hide the touch controls again
+        this.touch = false; document.body.classList.remove('touch');
+        if (this.touchEl) this.touchEl.hidden = true;
+      }
     }, true);
   }
   // On-screen controls: a stick wherever the left thumb lands, drag on the right to look, buttons.
@@ -68,7 +75,7 @@ export class Input {
       b.addEventListener('pointerup', rel); b.addEventListener('pointercancel', rel); b.addEventListener('pointerleave', rel);
     }
   }
-  showTouch(on) { this.touchWanted = on; if (this.touchEl) this.touchEl.hidden = !on; }
+  showTouch(on) { this.touchWanted = on; if (this.touchEl) this.touchEl.hidden = !on || !this.touch; }
   lock() { if (!this.locked && !this.touch) { try { this.canvas.requestPointerLock?.()?.catch?.(() => {}); } catch {} } }
   unlock() { if (this.locked) document.exitPointerLock?.(); }
   down(...codes) { return codes.some(c => this.keys.has(c)); }

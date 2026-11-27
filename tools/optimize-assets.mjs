@@ -12,10 +12,13 @@ await fs.mkdir(`${OUT}/models`, { recursive: true });
 await fs.mkdir(`${OUT}/tex`, { recursive: true });
 
 const TEX_SIZE = { cardboard_box_01: 512, lifebuoy: 512, fire_hydrant: 512, ocean_buoy: 512 };
+// photoscanned rocks are hundreds of thousands of triangles; they're instanced many times, so cut hard
+const SIMPLIFY = { coast_rocks_01: [0.008, 0.02], rock_moss_set_01: [0.04, 0.05], metal_trash_can: [0.25, 0.005], fire_hydrant: [0.3, 0.005] };
 for (const id of MODELS) {
   const out = `${OUT}/models/${id}.glb`;
   const size = TEX_SIZE[id] ?? 1024;
-  execSync(`npx gltf-transform optimize "${RAW}/models/${id}/${id}.gltf" "${out}" --compress meshopt --texture-compress webp --texture-size ${size} --simplify-ratio 0.5 --simplify-error 0.002`, { stdio: 'inherit' });
+  const [ratio, err] = SIMPLIFY[id] ?? [0.5, 0.002];
+  execSync(`npx gltf-transform optimize "${RAW}/models/${id}/${id}.gltf" "${out}" --compress meshopt --texture-compress webp --texture-size ${size} --simplify-ratio ${ratio} --simplify-error ${err}`, { stdio: 'inherit' });
 }
 for (const id of TEXTURES) {
   for (const m of ['diff', 'nor', 'arm']) {

@@ -108,7 +108,11 @@ export class Game {
     if (input.hit('KeyH') || (pad && pad.hit('start'))) this.toggleOverlay('help');
     if (input.hit('KeyM', 'Tab') || (pad && pad.hit('back'))) this.toggleOverlay('map');
     if (input.hit('Escape')) { if (this.overlay) this.toggleOverlay(this.overlay); }
-    if (this.overlay) { if (this.overlay === 'map') this.drawBigMap(); input.endFrame(); return; }
+    if (this.overlay) {
+      if (this.overlay === 'map') this.drawBigMap();
+      this.audio.update(dt, { engine: false, skid: 0, seaNear: 0, throttle: 0, rpm: 0 }); // hush while paused
+      input.endFrame(); return;
+    }
 
     // --- input
     const fwd = this.cam.flatForward(), right = { x: -fwd.z, z: fwd.x };
@@ -126,7 +130,7 @@ export class Game {
       const brk = Math.max(input.down('KeyS', 'ArrowDown') ? 1 : 0, pad ? pad.lt : 0, input.stick.y);
       let steer = input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']) + input.stick.x; if (pad) steer += pad.lx;
       const exiting = !!player.seq;
-      car.update(dt, exiting ? { throttle: 0, brake: 0, steer: 0, handbrake: true } : { throttle: thr, brake: brk, steer: clamp(steer, -1, 1), handbrake: input.down('Space') || (pad && pad.now.b) });
+      car.update(dt, exiting ? { throttle: 0, brake: 0, steer: 0, handbrake: true, parked: Math.abs(car.speed) < 1 } : { throttle: thr, brake: brk, steer: clamp(steer, -1, 1), handbrake: input.down('Space') || (pad && pad.now.b) });
       if (input.hit('KeyQ') || (pad && pad.hit('x'))) this.audio.horn();
       if (input.hit('KeyL')) car.setLights(!car.lightsOn);
       if (carKey && !exiting) {
@@ -135,7 +139,7 @@ export class Game {
       }
       if (this.boxWhere === 'car' && this.boxCount > 0 && this.nearLookout(car.pos, 40)) prompt = 'Park here and take the box to the lookout';
     } else {
-      car.update(dt, null);
+      car.update(dt, { throttle: 0, brake: 0, steer: 0, handbrake: true, parked: true });
       if (!player.seq) {
         const move = { x: fwd.x * my + right.x * mx, z: fwd.z * my + right.z * mx };
         player.updateOnFoot(dt, player.action ? { x: 0, z: 0 } : move, input.down('ShiftLeft', 'ShiftRight') || (pad && pad.now.lb), this.boxWhere === 'hands');
@@ -167,7 +171,7 @@ export class Game {
       listener: { position: this.E.camera.position, forward: camF },
       seaNear: clamp(1 - s / 90, 0, 1), engine: player.inCar, rpm: clamp(Math.abs(car.speed) / 33, 0, 1) * 0.8 + 0.15,
       throttle: player.inCar && input.down('KeyW', 'ArrowUp') ? 1 : 0,
-      skid: player.inCar ? Math.abs(car.vel.dot(new THREE.Vector2(-car.forward.y, car.forward.x))) - 2 : 0,
+      skid: player.inCar ? Math.max(0, Math.abs(car.vel.dot(new THREE.Vector2(-car.forward.y, car.forward.x))) - 2) : 0,
       windBoost: this.nearLookout(focus, 60) ? 0.05 : 0,
     });
     ui.prompt(prompt);
@@ -178,36 +182,29 @@ export class Game {
   nearLookout(p, d = 7) { return Math.hypot(p.x - this.lookout.x, p.z - this.lookout.z) < d; }
 
   interactions(interact, carKey) {
-    const { player, car, pufflings, ui } = this;
+    const { player, car, pufflings } = this;
     const P = player.pos;
     const holding = this.boxWhere === 'hands';
     const nearCar = Math.hypot(P.x - car.pos.x, P.z - car.pos.z) < 3.4;
-    const lines = [];
-    // throw from the lookout
+    // E goes to the first thing that can use it; notes only explain why nothing can
+    const actions = [], notes = [];
     if (holding && this.nearLookout(P, 7.5)) {
-      if (this.boxCount > 0) {
-        lines.push('E  Throw a puffling out to sea');
-        if (interact) { this.throwOne(); return ''; }
-      } else lines.push('The box is empty. Find more pufflings in town');
-    } else {
-      const p = pufflings.nearestCatchable(P.x, P.z, holding ? 1.7 : 2.6);
-      if (p) {
-        if (!holding) lines.push(this.boxWhere === 'car' ? 'You need the box. It\'s in the car' : '');
-        else if (this.boxCount >= this.box.capacity) lines.push('The box is full. Take them to the cliff');
-        else {
-          lines.push('E  Catch the puffling');
-          if (interact) { this.catchOne(p); return ''; }
-        }
-      } else if (nearCar) {
-        if (holding) {
-          lines.push('E  Put the box in the car');
-          if (interact) { this.putBoxInCar(); return ''; }
-        } else if (this.boxWhere === 'car') {
-          lines.push('E  Take the box');
-          if (interact) { this.takeBox(); return ''; }
-        }
-      }
+      if (this.boxCount > 0) actions.push(['E  Throw a puffling out to sea', () => this.throwOne()]);
+      else notes.push('The box is empty. Find more pufflings in town');
     }
+    const p = pufflings.nearestCatchable(P.x, P.z, holding ? 1.7 : 2.6);
+    if (p) {
+      if (!holding) { if (this.boxWhere === 'car') notes.push("You need the box. It's in the car"); }
+      else if (this.boxCount >= this.box.capacity) notes.push('The box is full. Take them to the cliff');
+      else actions.push(['E  Catch the puffling', () => this.catchOne(p)]);
+    }
+    if (nearCar) {
+      if (holding) actions.push(['E  Put the box in the car', () => this.putBoxInCar()]);
+      else if (this.boxWhere === 'car') actions.push(['E  Take the box', () => this.takeBox()]);
+    }
+    if (interact && actions.length) { actions[0][1](); return ''; }
+    const lines = [actions.length ? actions[0][0] : (notes[0] || '')];
+    if (actions.length && notes.length) lines.push(notes[0]);
     if (nearCar || Math.hypot(P.x - car.doorSpot().x, P.z - car.doorSpot().z) < 3.5) {
       lines.push('F  Get in' + (holding ? ' (the box comes too)' : ''));
       if (carKey) {
@@ -220,11 +217,11 @@ export class Game {
   }
   catchOne(p) {
     const { player } = this;
-    p.state = 'idle'; p.timer = 5; // it freezes for a moment
+    p.state = 'idle'; p.timer = 5; p.frozen = 1.0; // it freezes while you scoop it up
     player.heading = Math.atan2(p.pos.z - player.pos.z, p.pos.x - player.pos.x);
     player.startAction('grab', 0.85, 0.5, () => {
       if (!['idle', 'waddle', 'flee'].includes(p.state)) return;
-      if (Math.hypot(p.pos.x - player.pos.x, p.pos.z - player.pos.z) > 2.2) return;
+      if (Math.hypot(p.pos.x - player.pos.x, p.pos.z - player.pos.z) > 2.6) { this.ui.toast('Missed! Try sneaking up (C)', 1.6); return; }
       this.pufflings.catch(p);
       this.boxCount++; this.audio.rustle();
       this.ui.setBox(this.boxCount, 'hands');
