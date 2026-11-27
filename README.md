@@ -23,7 +23,8 @@ Play it at **https://bouyerthedestroyer.github.io/puffling-night/**.
 | M | map |
 | H | help |
 
-A gamepad works too.
+A gamepad works too. On a touch screen, the left thumb moves or drives, dragging on the right looks
+around, and on-screen buttons do E, the car, the brake, running and the map.
 
 ## Development
 
@@ -32,6 +33,8 @@ npm install
 npm run dev        # http://localhost:5199
 npm run build      # -> dist/
 node tests/play.mjs <outdir>   # plays the whole loop in Firefox (Playwright) and takes screenshots
+node tests/flow.mjs <outdir>   # title screen -> intro -> game
+node tests/soak.mjs            # 90 s of random play: errors, frame rate, object counts
 ```
 
 Built with [three.js](https://threejs.org) and Vite. The world is generated from a fixed seed in

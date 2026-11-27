@@ -79,7 +79,7 @@ function wheelGeometries() {
 export function carMaterials(color = 0xa01818) {
   return {
     paint: new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: 0x0b0e12, metalness: 0, roughness: 0.04, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0x0b0e12, metalness: 0, roughness: 0.04, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.FrontSide }),
     black: new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.6 }),
     chrome: new THREE.MeshStandardMaterial({ color: 0xcfd3d8, metalness: 1, roughness: 0.18 }),
     tyre: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.85 }),
