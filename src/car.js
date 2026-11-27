@@ -69,7 +69,7 @@ function wheelGeometries() {
     h.absarc(0, 0, 0.2, a0, a1, false); h.lineTo(Math.cos(a1) * 0.08, Math.sin(a1) * 0.08); h.closePath();
     rim.holes.push(h);
   }
-  const rimG = new THREE.ExtrudeGeometry(rim, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2, curveSegments: 24 });
+  const rimG = new THREE.ExtrudeGeometry(rim, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 1, curveSegments: 8 });
   rimG.rotateY(Math.PI / 2); rimG.translate(0.06, 0, 0);
   const hub = new THREE.CylinderGeometry(0.2, 0.2, 0.16, 24); hub.rotateZ(Math.PI / 2); hub.translate(-0.02, 0, 0);
   const disc = new THREE.CylinderGeometry(0.17, 0.17, 0.03, 24); disc.rotateZ(Math.PI / 2); disc.translate(-0.05, 0, 0);
