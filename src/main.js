@@ -91,7 +91,7 @@ if (params.has('play')) { audio.start(); startGame(); }
 if (params.has('intro')) { startIntro(); if (params.get('intro')) intro.t = +params.get('intro'); }
 
 const clock = new THREE.Clock();
-let fpsN = 0, fpsT = 0, slow = 0;
+let fpsN = 0, fpsT = 0, slow = 0, fast = 0, playTime = 0;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
@@ -117,11 +117,14 @@ function frame() {
   fpsN++;
   if (t - fpsT > 1) {
     const fps = fpsN / (t - fpsT); window.__fps = Math.round(fps); fpsN = 0; fpsT = t;
-    if (mode === 'play' && !params.has('fixed')) {
-      const pr = E.renderer.getPixelRatio();
-      if (fps < 40) slow++; else slow = 0;
-      if (slow >= 2 && pr > 0.6) { E.renderer.setPixelRatio(Math.max(0.6, pr - 0.15)); E.resize(); slow = 0; }
-      else if (fps > 58 && pr < Math.min(devicePixelRatio, 1.5) && t > 10) { E.renderer.setPixelRatio(Math.min(pr + 0.1, devicePixelRatio, 1.5)); E.resize(); }
+    // adaptive resolution: wait out the first seconds (shaders compiling), then only react to a
+    // sustained slow or fast frame rate
+    if (mode === 'play' && !params.has('fixed') && (playTime += 1) > 6) {
+      const pr = E.renderer.getPixelRatio(), maxPr = Math.min(devicePixelRatio, 1.5);
+      slow = fps < 32 ? slow + 1 : 0;
+      fast = fps > 50 ? fast + 1 : 0;
+      if (slow >= 3 && pr > 0.6) { E.renderer.setPixelRatio(Math.max(0.6, pr - 0.15)); E.resize(); slow = 0; }
+      else if (fast >= 4 && pr < maxPr) { E.renderer.setPixelRatio(Math.min(pr + 0.1, maxPr)); E.resize(); fast = 0; }
     }
   }
   requestAnimationFrame(frame);

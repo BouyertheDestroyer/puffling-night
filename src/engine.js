@@ -10,11 +10,11 @@ import { A, setAniso } from './assets.js';
 // Renderer, post-processing, environment and the pooled street lights.
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(new URLSearchParams(location.search).has('pr') ? +new URLSearchParams(location.search).get('pr') : Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.35;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !new URLSearchParams(location.search).has('noshadow');
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   setAniso(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
 
@@ -23,7 +23,8 @@ export function createEngine(canvas) {
   scene.fog = new THREE.FogExp2(0x000000, 0.0006);
   scene.fog.color.setRGB(0.008, 0.012, 0.022, THREE.LinearSRGBColorSpace);
 
-  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+  const Q = new URLSearchParams(location.search);
+  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: Q.has('msaa') ? +Q.get('msaa') : 4 });
   const composer = new EffectComposer(renderer, rt);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
@@ -59,7 +60,7 @@ export function createEngine(canvas) {
   scene.add(hemi);
 
   // pooled point lights for the nearest street lamps
-  const POOL = 14;
+  const POOL = Q.has('pool') ? +Q.get('pool') : 14;
   const pool = [];
   for (let i = 0; i < POOL; i++) {
     const l = new THREE.PointLight(0xffb46b, 0, 34, 2);
