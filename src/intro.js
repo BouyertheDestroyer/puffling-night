@@ -204,8 +204,11 @@ export class Intro {
   }
   setGameVisible(v) {
     const g = this.game;
-    g.car.root.visible = v; g.player.root.visible = v;
-    for (const p of g.pufflings.list) p.m.root.visible = v && p.state !== 'caught';
+    g.player.root.visible = v;
+    for (const c of g.cars) c.root.visible = v;
+    for (const n of g.people.list) n.root.visible = v;
+    for (const b of g.boxes) if (b.where === 'ground') b.group.visible = v;
+    for (const p of g.pufflings.list) p.m.root.visible = v;
     for (const m of g.parkedMeshes ?? []) m.visible = v;
   }
   lampsOn(k) { this.lampLevel = k; }

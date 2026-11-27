@@ -79,6 +79,7 @@ await page.waitForTimeout(800);
 await shot('09-at-cliff-in-car');
 await press('f'); await page.waitForTimeout(1800);
 check(await G(() => !__game.player.inCar), 'got out of the car');
+check(await G(() => __game.car.doorTarget === 0 && __game.car.doorOpen < 0.3), 'closed the door behind them');
 await shot('10-out-at-cliff');
 await press('e'); await page.waitForTimeout(400);
 check(await G(() => __game.boxWhere === 'hands'), 'took the box at the cliff');

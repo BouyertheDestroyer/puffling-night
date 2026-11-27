@@ -148,5 +148,35 @@ export class Audio {
     if (on && !this.fire) this.fire = this.loopNoise(this.white, 'highpass', 2500, 0.0);
     if (this.fire) this.fire.g.gain.setTargetAtTime(on ? 0.03 : 0, this.ctx.currentTime, 0.4);
   }
+  punch(hard = false) { this.thump(hard ? 0.5 : 0.32, hard ? 110 : 170, hard ? 0.3 : 0.18); }
+  swish() { this.noiseBurst(0.1, 3800, 0.14, 'highpass'); }
+  splash(size = 1) {
+    if (!this.ctx) return;
+    this.noiseBurst(Math.min(0.9, 0.25 * size), 600, 0.4 + 0.25 * size, 'lowpass');
+    this.noiseBurst(Math.min(0.5, 0.12 * size), 2200, 0.25 + 0.2 * size);
+  }
+  crunch(v) { this.thump(Math.min(0.9, v * 0.06), 55, Math.min(0.6, v * 0.04)); this.noiseBurst(Math.min(0.4, v * 0.025), 1200, 0.3); }
+  // the undead: a low wavering moan from somewhere out there
+  groan(pos) {
+    if (!this.ctx || this.muted) return;
+    const C = this.ctx, t = C.currentTime, out = this.panner(pos);
+    const o = C.createOscillator(), f1 = C.createBiquadFilter(), f2 = C.createBiquadFilter(), g = C.createGain();
+    o.type = 'sawtooth'; const f0 = 70 + Math.random() * 30;
+    o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * 0.8, t + 1.6);
+    const lfo = C.createOscillator(), lg = C.createGain(); lfo.frequency.value = 5; lg.gain.value = 4; lfo.connect(lg); lg.connect(o.frequency);
+    f1.type = 'bandpass'; f1.frequency.setValueAtTime(500, t); f1.frequency.linearRampToValueAtTime(320, t + 1.6); f1.Q.value = 4;
+    f2.type = 'lowpass'; f2.frequency.value = 1100;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+    o.connect(f1); f1.connect(f2); f2.connect(g); g.connect(out);
+    o.start(t); lfo.start(t); o.stop(t + 1.9); lfo.stop(t + 1.9);
+  }
+  siren() {
+    if (!this.ctx) return;
+    const C = this.ctx, t = C.currentTime, o = C.createOscillator(), g = C.createGain(), f = C.createBiquadFilter();
+    o.type = 'square'; f.type = 'lowpass'; f.frequency.value = 1800;
+    for (let i = 0; i < 6; i++) { o.frequency.setValueAtTime(i % 2 ? 588 : 784, t + i * 0.45); }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.07, t + 0.05); g.gain.setValueAtTime(0.07, t + 2.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+    o.connect(f); f.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 2.9);
+  }
   crackleTick(dt = 1 / 60) { if (this.fire && Math.random() < 18 * dt) this.noiseBurst(0.1, 3500, 0.02); }
 }

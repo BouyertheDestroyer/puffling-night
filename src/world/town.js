@@ -569,6 +569,10 @@ export function buildTown(L, E) {
     const x = b.x + b.doorWorld.x * c - b.doorWorld.z * s, z = b.z + b.doorWorld.x * s + b.doorWorld.z * c;
     if (r.chance(0.35)) lampSources.push({ pos: new THREE.Vector3(x, b.doorWorld.y, z), color: b.type === 'shed' ? 0xdde6ff : 0xffc890, intensity: b.type === 'shed' ? 10 : 4, distance: 10 });
   }
+  // the police station and its cell, and a fishing knife left on the pier
+  const jail = buildJail(L, M, addBox, obstacles, lampSources);
+  if (jail) group.add(jail.group);
+  group.add(buildKnifeCrate(L, M, addCircle));
   E.setLampSources(lampSources);
 
   // an old lamp on the cliff lookout
@@ -588,9 +592,10 @@ export function buildTown(L, E) {
       b.rotation.z = Math.sin(t * 0.6 + ph * 2) * 0.02;
     }
     lighthouse.userData.update(t);
+    jail?.update(t);
     if (group.userData.halo) group.userData.halo.uniforms.uScale.value = E.renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   };
-  return { group, obstacles, addBox, addCircle, lampSources, materials: M, lighthouse };
+  return { group, obstacles, addBox, addCircle, lampSources, materials: M, lighthouse, jail };
 }
 
 function buildHarbour(L, M, r, addBox) {
@@ -672,11 +677,132 @@ function buildLookout(L, M, addBox) {
   // fences along the cliff edge either side of the deck (collision too)
   for (const side of [-1, 1]) {
     const cx = lk.x + sx * 1.9 + tx * side * 18, cz = lk.z + sz * 1.9 + tz * side * 18;
-    addBox(cx, cz, 0.15, 14, Math.atan2(sz, sx));
+    addBox(cx, cz, 0.15, 14, Math.atan2(sz, sx), { fence: true, top: 1.1 });
   }
-  addBox(lk.x + sx * 1.9 + tx * 2.5, lk.z + sz * 1.9 + tz * 2.5, 0.15, 1.5, ang);
-  addBox(lk.x + sx * 1.9 - tx * 2.5, lk.z + sz * 1.9 - tz * 2.5, 0.15, 1.5, ang);
+  addBox(lk.x + sx * 1.9 + tx * 2.5, lk.z + sz * 1.9 + tz * 2.5, 0.15, 1.5, ang, { fence: true, top: 1.1 });
+  addBox(lk.x + sx * 1.9 - tx * 2.5, lk.z + sz * 1.9 - tz * 2.5, 0.15, 1.5, ang, { fence: true, top: 1.1 });
   // a lamp on the deck
   const lampPos = new THREE.Vector3(lk.x - sx * 4.5, y + 3.2, lk.z - sz * 4.5);
+  return g;
+}
+
+function signTexture(text, bg, fg) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 96);
+  g.fillStyle = fg; g.font = 'bold 62px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 256, 52);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+// A small police station with a barred holding cell out front, on a quiet plot beside Kirkjuvegur.
+function buildJail(L, M, addBox, obstacles, lampSources) {
+  // the first open plot near the middle of town, set back from a street and facing it
+  const centre = L.buildings.find(b => b.type === 'church') || L.carStart;
+  const cands = [];
+  for (const road of L.roads) {
+    if (road.name === 'Vitavegur') continue;
+    for (let i = 2; i < road.pts.length - 2; i++) {
+      const a = road.pts[i - 1], b = road.pts[i + 1], p = road.pts[i];
+      const ang = Math.atan2(b.z - a.z, b.x - a.x);
+      for (const side of [1, -1]) for (const set of [5.5, 7, 9]) {
+        const nx = -Math.sin(ang) * side, nz = Math.cos(ang) * side, off = road.width / 2 + L.SIDEWALK + set;
+        const x = p.x + nx * off, z = p.z + nz * off;
+        cands.push({ x, z, ang: side > 0 ? ang + Math.PI : ang, d: Math.hypot(x - centre.x, z - centre.z) + set });
+      }
+    }
+  }
+  cands.sort((a, b) => a.d - b.d);
+  let spot = null;
+  const near = new Set();
+  for (const c of cands) {
+    if (shoreS(c.x, c.z) < 20 || L.roadDist(c.x, c.z, 20).d < 3.2) continue;
+    near.clear(); obstacles.query(c.x, c.z, 6, near);
+    if ([...near].some(o => Math.hypot(o.x - c.x, o.z - c.z) < 5.8 + (o.type === 'box' ? Math.hypot(o.hw, o.hd) : o.r))) continue;
+    if (L.buildings.some(b => Math.hypot(b.x - c.x, b.z - c.z) < b.rad + 6.2)) continue;
+    let lo = Infinity, hi = -Infinity;
+    for (const [u, v] of [[-4.5, -4.5], [4.5, -4.5], [4.5, 4.5], [-4.5, 4.5], [0, 0]]) { const h = height(c.x + u, c.z + v); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    if (hi - lo > 1.8) continue;
+    spot = { ...c, base: hi + 0.05 };
+    break;
+  }
+  if (!spot) return null;
+  const { x, z, ang, base } = spot;
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const W = (u, v) => ({ x: x + u * c - v * s, z: z + u * s + v * c });
+  const group = new THREE.Group();
+  const mtx = new THREE.Matrix4().makeRotationY(-ang).setPosition(x, base, z);
+  const C = new GeoBuilder(2.4).setMatrix(mtx), B = new GeoBuilder(1).setMatrix(mtx);
+  const grey = col(0xb8b4aa), dark = col(0x6a6a66);
+  C.box(0, -0.5, 0.25, 8.4, 1.0, 7.6, grey);        // slab
+  C.box(0, 1.6, -2.3, 8.2, 3.2, 3.6, grey);          // the station
+  C.box(0, 3.25, -2.3, 8.4, 0.12, 3.8, dark);
+  C.box(0, 2.78, 1.3, 4.3, 0.16, 3.8, dark);         // cell roof
+  // bars: sides and front, with a sliding door in the middle of the front
+  const rods = (u0, v0, u1, v1, B) => {
+    const len = Math.hypot(u1 - u0, v1 - v0), n = Math.round(len / 0.17);
+    for (let k = 0; k <= n; k++) { const t = k / n; B.box(u0 + (u1 - u0) * t, 1.35, v0 + (v1 - v0) * t, 0.045, 2.7, 0.045, grey); }
+    for (const y of [0.12, 1.3, 2.62]) B.box((u0 + u1) / 2, y, (v0 + v1) / 2, Math.abs(u1 - u0) + 0.05, 0.05, Math.abs(v1 - v0) + 0.05, grey);
+  };
+  rods(-2.1, -0.5, -2.1, 3.15, B); rods(2.1, -0.5, 2.1, 3.15, B);
+  rods(-2.1, 3.15, -0.62, 3.15, B); rods(0.62, 3.15, 2.1, 3.15, B);
+  const bars = new THREE.Mesh(B.build(), M.metal); bars.castShadow = true;
+  const concrete = new THREE.Mesh(C.build(), M.concrete); concrete.castShadow = concrete.receiveShadow = true;
+  group.add(concrete, bars);
+  // the door
+  const D = new GeoBuilder(1);
+  rods(-0.6, 0, 0.6, 0, D);
+  const door = new THREE.Mesh(D.build(), M.metal);
+  const doorPivot = new THREE.Group(); doorPivot.position.set(x, base, z); doorPivot.rotation.y = -ang;
+  door.position.set(0, 0, 3.08); doorPivot.add(door); group.add(doorPivot);
+  // sign and a blue lamp
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.68), new THREE.MeshStandardMaterial({ map: signTexture('LÖGREGLAN', '#1f3f8f', '#ffffff'), emissive: 0xffffff, emissiveMap: signTexture('LÖGREGLAN', '#1f3f8f', '#ffffff'), emissiveIntensity: 0.6, roughness: 0.5 }));
+  const sp = W(0, -0.45); sign.position.set(sp.x, base + 3.0 + 0.05, sp.z); sign.rotation.y = -ang; sign.position.y += 0.02;
+  // sits on the station wall above the cell roof
+  sign.position.y = base + 3.0; group.add(sign);
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x0a1a4a, emissive: 0x3a6aff, emissiveIntensity: 2 });
+  const blue = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), blueMat);
+  const bp = W(0, -1.2); blue.position.set(bp.x, base + 3.45, bp.z); group.add(blue);
+  const inside = W(0, 1.3);
+  lampSources.push({ pos: new THREE.Vector3(inside.x, base + 2.4, inside.z), color: 0xffe2b0, intensity: 8, distance: 9 });
+  lampSources.push({ pos: new THREE.Vector3(bp.x, base + 3.6, bp.z), color: 0x4a7aff, intensity: 10, distance: 14 });
+  // collision
+  const box = (u, v, hu, hv, extra) => { const p = W(u, v); return addBox(p.x, p.z, hu, hv, ang, extra); };
+  box(0, -2.3, 4.15, 1.85);
+  box(-2.1, 1.3, 0.1, 1.85); box(2.1, 1.3, 0.1, 1.85);
+  box(-1.36, 3.15, 0.74, 0.1); box(1.36, 3.15, 0.74, 0.1);
+  const doorBox = box(0, 3.15, 0.62, 0.1);
+  let open = true, flash = 0;
+  const setDoor = o => { open = o; doorBox.disabled = o; };
+  setDoor(true);
+  const out = W(0, 5.2);
+  L.jail = { x, z, ang, cell: inside, out, base };
+  return {
+    group, x, z, ang, cell: inside, out, setDoor, get open() { return open; },
+    alarm(on) { flash = on ? 1 : 0; },
+    update(t) {
+      door.position.x = THREE.MathUtils.damp(door.position.x, open ? 1.3 : 0, 4, 1 / 60);
+      door.position.z = open ? 3.22 : 3.08;
+      blueMat.emissiveIntensity = flash ? (Math.sin(t * 12) > 0 ? 8 : 0.5) : 2;
+    },
+  };
+}
+
+function buildKnifeCrate(L, M, addCircle) {
+  const g = new THREE.Group(), P = L.pier;
+  const c = Math.cos(P.ang), s = Math.sin(P.ang), along = 5;
+  const x = P.x + c * along, z = P.z + s * along;
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.5), M.wood);
+  crate.position.set(x, P.top + 0.275, z); crate.rotation.y = -P.ang + 0.3; crate.castShadow = crate.receiveShadow = true;
+  g.add(crate);
+  const knife = new THREE.Group();
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.012, 0.04), new THREE.MeshStandardMaterial({ color: 0xe8eef2, metalness: 1, roughness: 0.15, emissive: 0x334455, emissiveIntensity: 0.6 }));
+  blade.position.x = 0.1;
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 0.035), new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 0.8 }));
+  handle.position.x = -0.055;
+  knife.add(blade, handle); knife.position.set(x, P.top + 0.565, z); knife.rotation.y = -P.ang + 1.1;
+  g.add(knife);
+  addCircle(x, z, 0.4);
+  L.knife = { x, z, y: P.top + 0.56, mesh: knife };
   return g;
 }

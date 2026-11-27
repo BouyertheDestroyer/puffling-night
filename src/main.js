@@ -39,6 +39,7 @@ const ocean = buildOcean(heightTex); E.scene.add(ocean);
 }
 const town = buildTown(L, E); E.scene.add(town.group);
 const world = createWorld(L, town);
+world.meshGround = terrain.userData.sample;
 const grass = buildGrass(L, terrain); E.scene.add(grass);
 const input = new Input(canvas);
 const audio = new Audio();
@@ -93,6 +94,10 @@ if (params.has('intro')) { startIntro(); if (params.get('intro')) intro.t = +par
 const clock = new THREE.Clock();
 let fpsN = 0, fpsT = 0, slow = 0, fast = 0, playTime = 0;
 function frame() {
+  requestAnimationFrame(frame);
+  try { step(); } catch (e) { if (!window.__err) console.error(e); window.__err = (window.__err || 0) + 1; }
+}
+function step() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   if (mode === 'play') {
@@ -127,7 +132,6 @@ function frame() {
       else if (fast >= 4 && pr < maxPr) { E.renderer.setPixelRatio(Math.min(pr + 0.1, maxPr)); E.resize(); fast = 0; }
     }
   }
-  requestAnimationFrame(frame);
 }
 frame();
 window.__ready = true;

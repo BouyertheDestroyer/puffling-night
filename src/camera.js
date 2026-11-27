@@ -30,16 +30,24 @@ export class FollowCam {
     const T = this.smoothTarget;
     const cp = Math.cos(this.pitch);
     const dir = new THREE.Vector3(-Math.cos(this.yaw) * cp, Math.sin(this.pitch), -Math.sin(this.yaw) * cp);
-    // pull in if a wall or the ground is in the way
+    // pull in if a wall or the ground is in the way. The ground here is the higher of the height
+    // function and the rendered terrain around the point, so the camera never ends up inside a cliff.
+    const W = this.world;
+    const gnd = (x, z) => {
+      let g = W.ground(x, z);
+      if (W.meshGround) for (const [a, b] of [[0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]]) g = Math.max(g, W.meshGround(x + a, z + b));
+      return g;
+    };
     let d = this.dist;
     for (let s = 0.6; s <= this.dist; s += 0.3) {
       const p = T.clone().addScaledVector(dir, s);
-      if (this.world.blocked(p.x, p.z, 0.2, { static: true, boxesOnly: true, above: p.y - this.world.ground(p.x, p.z) })) { d = Math.max(0.6, s - 0.4); break; }
-      if (p.y < this.world.ground(p.x, p.z) + 0.3) { d = Math.max(0.6, s - 0.2); break; }
+      const g = gnd(p.x, p.z);
+      if (W.blocked(p.x, p.z, 0.2, { static: true, boxesOnly: true, above: p.y - g })) { d = Math.max(0.6, s - 0.4); break; }
+      if (p.y < g + 0.3) { d = Math.max(0.6, s - 0.2); break; }
     }
     this.curD = damp(this.curD ?? d, d, d < (this.curD ?? d) ? 30 : 4, dt);
     const pos = T.clone().addScaledVector(dir, this.curD);
-    pos.y = Math.max(pos.y, this.world.ground(pos.x, pos.z) + 0.3);
+    pos.y = Math.max(pos.y, gnd(pos.x, pos.z) + 0.3, 0.5); // and never under the sea
     this.cam.position.copy(pos);
     // look slightly above the target so the horizon shows
     this.cam.lookAt(T.x, T.y + (inCar ? 0.3 : 0.15), T.z);

@@ -138,17 +138,18 @@ export class Pufflings {
     }
     return best;
   }
-  catch(p) { p.state = 'caught'; p.m.root.visible = false; this.audio?.peep(p.pos, 1.25); }
-  // launch from a hand position over the cliff
-  throw(p, from, dir) {
-    p.state = 'thrown'; p.m.root.visible = true; p.t = 0;
-    if (p.m.root.parent !== this.scene) this.scene.add(p.m.root);
+  // into a box: it leaves the world (the box shows its own pufflings)
+  catch(p) { this.audio?.peep(p.pos, 1.25); p.state = 'gone'; }
+  // launch one from a hand position out over the sea
+  launch(from, dir, up = 5.5, speed = 8) {
+    const p = this.spawn(from.x, from.z);
+    p.state = 'thrown'; p.t = 0;
     p.pos.copy(from);
-    p.vel.set(dir.x * 8, 5.5, dir.z * 8);
-    p.m.root.scale.setScalar(p.m.size ?? 1.3);
+    p.vel.set(dir.x * speed, up, dir.z * speed);
     this.saved++;
+    return p;
   }
-  update(dt, player, car) {
+  update(dt, player, cars, car) {
     // keep the town stocked: new pufflings arrive from the sea
     const live = this.list.filter(p => ['idle', 'waddle', 'flee', 'arriving'].includes(p.state)).length;
     this.spawnTimer -= dt;
@@ -157,6 +158,7 @@ export class Pufflings {
       if (s) this.spawn(s.x, s.z, true);
       this.spawnTimer = 6;
     }
+    this.cars = cars || [];
     for (const p of this.list) this.step(p, dt, player, car);
     // forget the ones that have flown far away
     this.list = this.list.filter(p => {
@@ -201,9 +203,27 @@ export class Pufflings {
     }
     // ---- on the ground
     if (p.frozen > 0) { p.frozen -= dt; this.flapWings(p, dt, 0, 0); this.place(p); return; }
+    // a car bearing down: flap and hop out of its way
+    if (p.dodgeT > 0) {
+      p.dodgeT -= dt; p.hop += dt * 20;
+      this.move(p, 6.5, dt); this.flapWings(p, dt, 22, 1);
+      this.place(p); p.m.root.position.y += Math.sin(Math.min(1, 1 - p.dodgeT / 0.35) * Math.PI) * 0.45;
+      return;
+    }
+    for (const c of this.cars) {
+      const sp = c.speed; if (Math.abs(sp) < 4) continue;
+      const dx = p.pos.x - c.pos.x, dz = p.pos.z - c.pos.z; if (dx * dx + dz * dz > 400) continue;
+      const f = c.forward, along = (dx * f.x + dz * f.y) * Math.sign(sp), side = -dx * f.y + dz * f.x;
+      if (along > -1 && along < Math.abs(sp) * 0.75 + 3 && Math.abs(side) < 1.8 && p.stamina > 0.05) {
+        p.dodgeT = 0.35; p.state = 'flee'; p.fleeT = 1;
+        const s2 = side >= 0 ? 1 : -1; p.heading = Math.atan2(f.x * s2, -f.y * s2);
+        this.audio?.peep(p.pos, 1.5);
+        return;
+      }
+    }
     const threats = [];
     if (player && !player.inCar) threats.push({ x: player.pos.x, z: player.pos.z, r: player.noiseRadius });
-    if (car && Math.abs(car.speed) > 1) threats.push({ x: car.pos.x, z: car.pos.z, r: 7 });
+    for (const c of this.cars) if (Math.abs(c.speed) > 1) threats.push({ x: c.pos.x, z: c.pos.z, r: 7 });
     let fx = 0, fz = 0, scared = false;
     for (const t of threats) {
       const dx = p.pos.x - t.x, dz = p.pos.z - t.z, d = Math.hypot(dx, dz);

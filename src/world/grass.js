@@ -88,6 +88,7 @@ export function buildGrass(L, terrain) {
       if (sl > 0.45) continue; // rock
       if (shoreS(px, pz) < 20 && cliffT(pz) < 0.5) continue; // beach
       if (L.roadDist(px, pz, 6).d < L.SIDEWALK + 0.3) continue;
+      if (L.jail && Math.abs(px - L.jail.x) < 6 && Math.abs(pz - L.jail.z) < 6) continue; // the police station
       d.position.set(px, y - 0.03, pz);
       d.rotation.set(0, h1 * 6.28, 0);
       const s = 0.6 + h2 * 0.7;

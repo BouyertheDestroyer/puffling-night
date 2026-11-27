@@ -8,13 +8,17 @@ await p.goto(base + '?play');
 await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
 await p.waitForTimeout(1500);
 const keys = ['w', 'a', 'd', 's', 'Space'];
-const stat = () => p.evaluate(() => { let n = 0; __E.scene.traverse(() => n++); return { fps: window.__fps, objs: n, puff: __game.pufflings.list.length, geos: __E.renderer.info.memory.geometries, pr: __E.renderer.getPixelRatio(), inCar: __game.player.inCar }; });
+const stat = () => p.evaluate(() => { let n = 0; __E.scene.traverse(() => n++); return { fps: window.__fps, objs: n, puff: __game.pufflings.list.length, people: __game.people.list.length, cars: __game.cars.length, boxes: __game.boxes.length, geos: __E.renderer.info.memory.geometries, pr: __E.renderer.getPixelRatio(), inCar: __game.player.inCar }; });
 console.log('start', JSON.stringify(await stat()));
 for (let s = 0; s < 90; s++) {
   if (s % 15 === 0) { await p.keyboard.press('f'); }
   const k = keys[Math.floor(Math.random() * keys.length)];
   await p.keyboard.down('w'); await p.keyboard.down(k); await p.waitForTimeout(1000); await p.keyboard.up(k); await p.keyboard.up('w');
   if (Math.random() < 0.3) await p.keyboard.press('e');
+  if (Math.random() < 0.3) await p.keyboard.press('r');
+  if (Math.random() < 0.1) await p.keyboard.press('g');
+  // now and then jump somewhere else in town so people and traffic come and go
+  if (s % 20 === 10) await p.evaluate(() => { const g = __game, r = g.L.roads[Math.floor(Math.random() * g.L.roads.length)], q = r.pts[Math.floor(r.pts.length / 2)]; if (g.player.inCar) g.car.place(q.x, q.z, 0); else g.player.place(q.x + 6, q.z); });
   if (s % 30 === 29) console.log('t=' + (s + 1), JSON.stringify(await stat()));
 }
 console.log(errs.length ? errs.slice(0, 10).join('\n') : 'no errors');

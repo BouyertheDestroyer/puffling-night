@@ -39,7 +39,7 @@ export class Input {
     const el = document.createElement('div'); el.id = 'touch'; el.hidden = true;
     el.innerHTML = `<div id="stickBase"><div id="stickKnob"></div></div>
       <div id="tbtns"><button data-k="KeyE" class="big">E</button><button data-k="KeyF">Car</button>
-      <button data-k="Space" data-hold="1">Brake</button><button data-k="ShiftLeft" data-hold="1">Run</button><button data-k="KeyM">Map</button></div>`;
+      <button data-k="Space" data-hold="1">Jump</button><button data-k="KeyR">Hit</button><button data-k="ShiftLeft" data-hold="1">Run</button><button data-k="KeyM">Map</button></div>`;
     document.body.appendChild(el);
     this.touchEl = el;
     const base = el.querySelector('#stickBase'), knob = el.querySelector('#stickKnob');
@@ -88,7 +88,7 @@ export class Input {
     if (!p) return;
     const dz = v => (Math.abs(v) < 0.15 ? 0 : v);
     const b = i => !!p.buttons[i]?.pressed;
-    const now = { a: b(0), b: b(1), x: b(2), y: b(3), lb: b(4), rb: b(5), start: b(9), back: b(8) };
+    const now = { a: b(0), b: b(1), x: b(2), y: b(3), lb: b(4), rb: b(5), start: b(9), back: b(8), dl: b(14), dr: b(15) };
     const hit = k => now[k] && !this.padPrev[k];
     this.pad = { lx: dz(p.axes[0]), ly: dz(p.axes[1]), rx: dz(p.axes[2]), ry: dz(p.axes[3]), rt: p.buttons[7]?.value ?? 0, lt: p.buttons[6]?.value ?? 0, now, hit };
     this.padPrev = now;

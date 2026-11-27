@@ -221,46 +221,105 @@ export function parkedCarGeometries() {
 }
 
 // ------------------------------------------------------------------ the driveable car
+// A rigid body on four raycast suspension struts: it can jump, roll over, tumble and fall off cliffs.
+const MASS = 1200, COM = new THREE.Vector3(0, 0.55, 0);
+const INV_I = new THREE.Vector3(1 / 2045, 1 / 2173, 1 / 560); // local x (pitch), y (yaw), z (roll)
+const ANCHOR_Y = 0.62, WHEEL_R = 0.36, L_MAX = 0.44, L_REST = 0.26;
+const K_SPRING = MASS * 9.81 / 4 / (L_MAX - L_REST), C_DAMP = 2600;
+const P = (x, y, z) => new THREE.Vector3(x, y, z);
+// points on the body that can hit the ground (car-local, origin at the bottom of the tyres)
+const BUMPERS = [P(0.88, 0.32, 2.2), P(-0.88, 0.32, 2.2), P(0.88, 0.32, -2.2), P(-0.88, 0.32, -2.2), P(0, 0.4, 2.3), P(0, 0.4, -2.3)];
+const BODY_PTS = [...BUMPERS,
+  P(0.92, 1.05, 2.0), P(-0.92, 1.05, 2.0), P(0.92, 1.05, -2.1), P(-0.92, 1.05, -2.1), P(0.95, 0.7, 0), P(-0.95, 0.7, 0),
+  P(0.72, 1.63, 0.05), P(-0.72, 1.63, 0.05), P(0.72, 1.6, -1.85), P(-0.72, 1.6, -1.85), P(0, 1.68, -0.9),
+  P(0.8, 0.3, 0), P(-0.8, 0.3, 0)];
+const UP = P(0, 1, 0), FWD = P(0, 0, 1), LEFT = P(1, 0, 0);
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _r = new THREE.Vector3();
+const _n = new THREE.Vector3(), _f = new THREE.Vector3(), _s = new THREE.Vector3(), _up = new THREE.Vector3(), _fw = new THREE.Vector3(), _lf = new THREE.Vector3();
+const V = () => new THREE.Vector3();
+const _pr = V(), _ir = V(), _ic = V(), _id = V(), _ar = V(), _ac = V(), _ad = V(), _fJ = V();
+const _qi = new THREE.Quaternion(), _dq = new THREE.Quaternion(), _e = new THREE.Euler();
+
 export class Car {
-  constructor(scene, world, color = 0xb3261e) {
-    this.world = world;
+  constructor(scene, world, color = 0xb3261e, withLights = false) {
+    this.world = world; this.scene = scene;
     this.model = buildCarModel(color);
     this.root = this.model.root;
     scene.add(this.root);
     this.pos = new THREE.Vector3(); this.heading = 0; // forward = (cos h, sin h)
-    this.vel = new THREE.Vector2(); this.yawRate = 0;
-    this.steer = 0; this.throttle = 0; this.brake = 0; this.handbrake = false;
-    this.pitch = 0; this.roll = 0; this.bob = 0; this.bobV = 0;
+    this.q = new THREE.Quaternion(); this.com = new THREE.Vector3();
+    this.v = new THREE.Vector3(); this.w = new THREE.Vector3();
+    this.vel = new THREE.Vector2(); this.speed = 0; this.steer = 0;
+    this.wheelL = [L_REST, L_REST, L_REST, L_REST]; this.wheelV = [0, 0, 0, 0]; this.contacts = 4;
     this.doorOpen = 0; this.doorTarget = 0;
     this.lightsOn = true; this.engineOn = false;
-    this.wheelSpin = 0; this.speed = 0;
+    this.wheelSpin = [0, 0, 0, 0];
     this.braking = false; this.reversing = false;
-    // headlights
-    this.heads = [];
-    for (const x of [-0.62, 0.62]) {
-      const l = new THREE.SpotLight(0xfff1dc, 0, 60, 0.5, 0.5, 1.6);
-      l.position.set(x, 0.86, 2.35);
-      l.target.position.set(x * 1.5, 0.0, 14);
-      this.root.add(l, l.target);
-      this.heads.push(l);
+    this.asleep = false; this.sleepT = 0; this.inWater = 0; this.airT = 0; this.upright = 1; this.impact = 0;
+    this.kinematic = false; this.box = null; this.driver = null;
+    // real headlights only on the car the player drives (they move with the player from car to car,
+    // so the number of lights in the scene never changes); other cars just glow
+    this.heads = []; this.tailLight = null;
+    if (withLights) {
+      for (const x of [-0.62, 0.62]) {
+        const l = new THREE.SpotLight(0xfff1dc, 0, 60, 0.5, 0.5, 1.6);
+        l.position.set(x, 0.86, 2.35);
+        l.target.position.set(x * 1.5, 0.0, 14);
+        this.root.add(l, l.target);
+        this.heads.push(l);
+      }
+      this.tailLight = new THREE.PointLight(0xff2010, 0, 6, 2); this.tailLight.position.set(0, 0.9, -2.5); this.root.add(this.tailLight);
     }
-    this.heads[0].castShadow = true;
-    this.heads[0].shadow.mapSize.set(1024, 1024);
-    this.heads[0].shadow.camera.near = 0.5; this.heads[0].shadow.bias = -0.0005;
-    this.tailLight = new THREE.PointLight(0xff2010, 0, 6, 2); this.tailLight.position.set(0, 0.9, -2.5); this.root.add(this.tailLight);
     this.setLights(false);
+  }
+  moveLightsTo(other) {
+    if (other === this || !this.heads.length) return;
+    for (const l of this.heads) other.root.add(l, l.target);
+    other.root.add(this.tailLight);
+    other.heads = this.heads; other.tailLight = this.tailLight;
+    this.heads = []; this.tailLight = null;
+    const on = this.lightsOn; this.setLights(on); other.setLights(true);
+  }
+  // headlight shadows cost a full render each, so only the player's car has them
+  enableShadows() {
+    const h = this.heads[0]; if (!h) return;
+    h.castShadow = true; h.shadow.mapSize.set(1024, 1024); h.shadow.camera.near = 0.5; h.shadow.bias = -0.0005;
+  }
+  dispose() {
+    this.root.removeFromParent();
+    this.model.opening.geometry.dispose();
+    for (const k in this.model.M) this.model.M[k].dispose();
+    for (const l of this.heads) { l.shadow?.map?.dispose(); l.dispose?.(); }
   }
   get forward() { return new THREE.Vector2(Math.cos(this.heading), Math.sin(this.heading)); }
   place(x, z, heading) {
-    this.pos.set(x, this.world.ground(x, z), z); this.heading = heading; this.vel.set(0, 0); this.yawRate = 0;
+    const g = this.world.ground(x, z);
+    this.q.setFromEuler(_e.set(0, Math.PI / 2 - heading, 0));
+    this.pos.set(x, g, z); this.com.set(x, g + COM.y, z);
+    this.v.set(0, 0, 0); this.w.set(0, 0, 0); this.heading = heading; this.speed = 0;
+    this.wheelL.fill(L_REST); this.asleep = false; this.sleepT = 0; this.inWater = 0;
     this.updateTransform(0);
+  }
+  // put the car on the road surface at a pose, tilted to the ground (used for distant traffic)
+  setPose(x, z, heading, speed = 0) {
+    const W = this.world, fx = Math.cos(heading), fz = Math.sin(heading), rx = -fz, rz = fx;
+    const h = (a, b) => W.ground(x + fx * a + rx * b, z + fz * a + rz * b);
+    const fl = h(1.31, 0.78), fr = h(1.31, -0.78), rl = h(-1.31, 0.78), rr = h(-1.31, -0.78);
+    const y = (fl + fr + rl + rr) / 4;
+    _e.set(-Math.atan2((fl + fr) / 2 - (rl + rr) / 2, 2.62), Math.PI / 2 - heading, Math.atan2((fr + rr) / 2 - (fl + rl) / 2, 1.56), 'YXZ');
+    this.q.setFromEuler(_e);
+    this.pos.set(x, y, z); this.com.copy(COM).applyQuaternion(this.q).add(this.pos);
+    this.heading = heading; this.speed = speed;
+    this.v.set(fx * speed, 0, fz * speed); this.w.set(0, 0, 0); this.vel.set(this.v.x, this.v.z);
+    this.wheelL.fill(L_REST); this.wheelV.fill(speed); this.contacts = 4; this.upright = 1;
+    this.updateTransform(1 / 60);
   }
   setLights(on) {
     this.lightsOn = on;
     for (const l of this.heads) l.intensity = on ? 110 : 0;
     this.model.M.head.emissiveIntensity = on ? 3.5 : 0.3;
     this.model.M.tail.emissiveIntensity = on ? 1.6 : 0.15;
-    this.tailLight.intensity = on ? 1.2 : 0;
+    if (this.tailLight) this.tailLight.intensity = on ? 1.2 : 0;
   }
   // circles approximating the car's footprint, world space
   circles() {
@@ -268,114 +327,192 @@ export class Car {
     for (const o of [-1.35, 0, 1.35]) out.push({ x: this.pos.x + f.x * o, z: this.pos.z + f.y * o, r: 0.95 });
     return out;
   }
+  wake() { this.asleep = false; this.sleepT = 0; }
+  // ---- rigid body helpers (world space); each has its own scratch vectors
+  toWorld(local, out) { return out.copy(local).sub(COM).applyQuaternion(this.q).add(this.com); }
+  pointVel(p, out) { _pr.copy(p).sub(this.com); return out.copy(this.w).cross(_pr).add(this.v); }
+  invI(vec, out) { _qi.copy(this.q).invert(); out.copy(vec).applyQuaternion(_qi).multiply(INV_I).applyQuaternion(this.q); return out; }
+  invMassAt(p, n) {
+    _ir.copy(p).sub(this.com); _ic.copy(_ir).cross(n); this.invI(_ic, _id); _id.cross(_ir);
+    return 1 / MASS + n.dot(_id);
+  }
+  applyImpulse(J, p) {
+    this.v.addScaledVector(J, 1 / MASS);
+    _ar.copy(p).sub(this.com); _ac.copy(_ar).cross(J); this.invI(_ac, _ad); this.w.add(_ad);
+  }
+  applyForce(F, p, h) { _fJ.copy(F).multiplyScalar(h); this.applyImpulse(_fJ, p); }
+  syncPos() { this.pos.copy(COM).applyQuaternion(this.q).negate().add(this.com); }
+
   update(dt, input) {
+    if (this.kinematic) return;
+    const thr = input?.throttle || 0, brk = input?.brake || 0, hb = !!input?.handbrake, parked = !!input?.parked;
+    const maxSteer = lerp(0.6, 0.17, clamp(Math.abs(this.speed) / 32, 0, 1));
+    this.steer = damp(this.steer, (input?.steer || 0) * maxSteer, 8, dt);
+    if (this.asleep) {
+      if (!parked || thr || brk) this.wake();
+      else { this.updateTransform(dt); return; }
+    }
     const W = this.world;
-    const f = this.forward, rgt = new THREE.Vector2(-f.y, f.x);
-    let vf = this.vel.dot(f), vl = this.vel.dot(rgt);
-    const thr = input ? input.throttle : 0, brk = input ? input.brake : 0;
-    this.handbrake = input ? input.handbrake : false;
-    // steering: less at speed
-    const maxSteer = lerp(0.58, 0.16, clamp(Math.abs(vf) / 32, 0, 1));
-    this.steer = damp(this.steer, (input ? input.steer : 0) * maxSteer, 8, dt);
-    // engine and brakes
-    const maxV = 33;
-    this.braking = false; this.reversing = false;
-    if (thr > 0) {
-      if (vf < -0.5) { vf += 14 * dt * thr; this.braking = true; }
-      else vf += thr * 8.5 * (1 - clamp(vf / maxV, 0, 1) ** 2) * dt;
-    }
-    if (brk > 0) {
-      if (vf > 0.5) { vf -= 16 * dt * brk; this.braking = true; }
-      else { vf -= brk * 5 * dt * (vf > -9 ? 1 : 0); this.reversing = true; }
-    }
-    if (!thr && !brk) vf -= Math.sign(vf) * Math.min(Math.abs(vf), (1.2 + Math.abs(vf) * 0.05) * dt);
-    if (this.handbrake) { vf -= Math.sign(vf) * Math.min(Math.abs(vf), 9 * dt); this.braking = true; }
-    vf -= vf * Math.abs(vf) * 0.0011 * dt;
-    // slope
-    const n = W.normal(this.pos.x, this.pos.z);
-    vf += -9.81 * (n[0] * f.x + n[2] * f.y) * dt * 0.9;
-    // lateral grip
-    const grip = this.handbrake ? 1.6 : 9;
-    vl *= Math.exp(-grip * dt);
-    // a parked car (nobody driving, or someone getting in or out) stays put
-    if (input && input.parked && Math.abs(vf) < 2) { vf = 0; vl = 0; }
-    // yaw
-    const targetYaw = vf / CAR_DIMS.wheelBase * Math.tan(this.steer) * (this.handbrake ? 1.35 : 1);
-    this.yawRate = damp(this.yawRate, targetYaw, this.handbrake ? 3 : 10, dt);
-    this.heading += this.yawRate * dt;
-    const f2 = this.forward, r2 = new THREE.Vector2(-f2.y, f2.x);
-    this.vel.set(f2.x * vf + r2.x * vl, f2.y * vf + r2.y * vl);
-    // integrate with collision
-    const nx = this.pos.x + this.vel.x * dt, nz = this.pos.z + this.vel.y * dt;
-    const prevH = this.pos.y, px0 = this.pos.x, pz0 = this.pos.z;
-    this.pos.x = nx; this.pos.z = nz;
-    this.collide(prevH, px0, pz0);
-    this.speed = this.vel.dot(this.forward);
+    const onRoad = W.L.roadDist(this.com.x, this.com.z, 8).d < 0.6;
+    const mu = onRoad ? 1.15 : W.ground(this.com.x, this.com.z) < 0.3 ? 0.65 : 0.85;
+    const gn = W.normal(this.com.x, this.com.z); _n.set(gn[0], gn[1], gn[2]);
+    this.gNormal = (this.gNormal ?? new THREE.Vector3()).copy(_n);
+    const n = Math.min(12, Math.ceil(dt * 240)), h = dt / n;
+    this.impact = 0; this.splash = false;
+    let wet = false;
+    for (let k = 0; k < n; k++) wet = this.step(h, thr, brk, hb, parked, mu) || wet;
+    this.syncPos();
+    _fw.copy(FWD).applyQuaternion(this.q); _up.copy(UP).applyQuaternion(this.q);
+    if (Math.hypot(_fw.x, _fw.z) > 0.15) this.heading = Math.atan2(_fw.z, _fw.x);
+    this.vel.set(this.v.x, this.v.z);
+    this.speed = this.v.dot(_fw);
+    this.upright = _up.y;
+    this.airT = this.contacts ? 0 : this.airT + dt;
+    if (this.impact > 4) this.onCrash?.(this.impact);
+    // in the sea
+    if (wet) { if (!this.inWater) this.splash = true; this.inWater += dt; } else this.inWater = Math.max(0, this.inWater - dt * 0.3);
+    // a parked car that has come to rest goes to sleep and stops costing anything
+    if (parked && this.contacts >= 3 && this.v.lengthSq() < 0.04 && this.w.lengthSq() < 0.04) {
+      if ((this.sleepT += dt) > 0.4) { this.asleep = true; this.v.set(0, 0, 0); this.w.set(0, 0, 0); }
+    } else this.sleepT = 0;
     this.updateTransform(dt);
   }
-  collide(prevH, px0, pz0) {
-    const W = this.world;
-    // water or a sudden drop: go back to where we were and bounce off it
-    const bad = () => this.circles().some(c => { const h = W.ground(c.x, c.z); return h < 0.25 || h < prevH - 2.2; });
-    if (bad()) {
-      this.pos.x = px0; this.pos.z = pz0;
-      const sp = this.vel.length();
-      this.vel.multiplyScalar(-0.25);
-      if (sp > 4) this.onCrash?.(sp * 0.5);
+  step(h, thr, brk, hb, parked, mu) {
+    const W = this.world, q = this.q;
+    const up = _up.copy(UP).applyQuaternion(q), fwd = _fw.copy(FWD).applyQuaternion(q), left = _lf.copy(LEFT).applyQuaternion(q);
+    const vf = this.v.dot(fwd);
+    this.v.y -= 9.81 * h;
+    // the sea: it floats for a few seconds, then fills up and sinks
+    let wet = false;
+    const gc = W.ground(this.com.x, this.com.z);
+    if (gc < -0.3 && this.com.y < 0.7) {
+      wet = true;
+      const depth = clamp((0.7 - this.com.y) / 1.3, 0, 1);
+      if (-this.v.y > 6 && depth < 0.4) this.impact = Math.max(this.impact, -this.v.y * 0.5);
+      this.v.y += 9.81 * 1.3 * depth * Math.max(0, 1 - this.inWater / 7) * h;
+      this.v.multiplyScalar(Math.exp(-1.4 * depth * h)); this.w.multiplyScalar(Math.exp(-1.8 * depth * h));
     }
-    for (let iter = 0; iter < 2; iter++) {
-      for (const c of this.circles()) {
-        const push = W.pushOut(c.x, c.z, c.r, { car: this });
-        const px = push.x, pz = push.z;
-        if (px || pz) {
-          this.pos.x += px; this.pos.z += pz;
-          const nl = Math.hypot(px, pz), nxx = px / nl, nzz = pz / nl;
-          const into = this.vel.x * nxx + this.vel.y * nzz;
-          if (into < 0) {
-            this.vel.x -= into * nxx * 1.25; this.vel.y -= into * nzz * 1.25;
-            this.vel.multiplyScalar(0.85);
-            if (-into > 4) this.onCrash?.(-into);
-          }
+    // ---- wheels
+    let contacts = 0;
+    this.braking = false; this.reversing = false;
+    for (let i = 0; i < 4; i++) {
+      const [lx, lz] = WHEELS[i];
+      const A = this.toWorld(_a.set(lx, ANCHOR_Y, lz), _a);
+      if (up.y < 0.3) { this.wheelL[i] = L_MAX; continue; }
+      const g = W.ground(A.x, A.z);
+      const t = (A.y - g) / up.y, L = t - WHEEL_R;
+      if (L > L_MAX) { this.wheelL[i] = Math.min(L_MAX, this.wheelL[i] + h * 2); continue; }
+      contacts++;
+      const Lc = Math.max(L, 0.03);
+      const Pc = _b.copy(up).multiplyScalar(-t).add(A); // where the tyre touches
+      const vp = this.pointVel(Pc, _c);
+      const vUp = vp.dot(up);
+      let N = K_SPRING * (L_MAX - Lc) - C_DAMP * vUp;
+      if (L < 0.07) N += 90000 * (0.07 - L) - 4000 * vUp; // bump stop
+      N = Math.max(0, N);
+      // tyre frame on the ground
+      const sa = lz > 0 ? this.steer : 0;
+      const wf = _f.copy(fwd).multiplyScalar(Math.cos(sa)).addScaledVector(left, -Math.sin(sa));
+      wf.addScaledVector(this.gNormal, -wf.dot(this.gNormal)).normalize();
+      const ws = _s.copy(this.gNormal).cross(wf);
+      const vlong = vp.dot(wf), vlat = vp.dot(ws);
+      const rear = lz < 0, share = rear ? 0.325 : 0.175;
+      const lock = parked || (hb && rear);
+      let Fx = 0, brake = lock ? 1 : 0;
+      if (thr > 0) {
+        if (vf < -0.5) brake = Math.max(brake, thr);
+        else Fx += thr * MASS * 8.5 * (1 - clamp(vf / 34, 0, 1) ** 2) * share;
+      }
+      if (brk > 0) {
+        if (vf > 0.5) brake = Math.max(brake, brk);
+        else if (vf > -10) { Fx -= brk * MASS * 5 * share; this.reversing = true; }
+      }
+      const lim = mu * N;
+      if (brake > 0) { Fx -= clamp(vlong * 6, -1, 1) * lim * brake; this.braking = true; }
+      else if (!thr && !brk) Fx -= clamp(vlong * 4, -1, 1) * N * 0.11 + vlong * N * 0.004; // rolling and engine drag
+      const latMu = hb && rear ? 0.42 : 1;
+      let Fy = -clamp(vlat * 5, -1, 1) * lim * latMu;
+      const f = Math.hypot(Fx, Fy), cap = lim * (hb && rear ? 0.6 : 1);
+      if (f > cap) { Fx *= cap / f; Fy *= cap / f; }
+      _d.copy(wf).multiplyScalar(Fx).addScaledVector(ws, Fy).addScaledVector(up, N);
+      this.applyForce(_d, Pc, h);
+      this.wheelL[i] = L; this.wheelV[i] = vlong;
+    }
+    this.contacts = contacts;
+    // ---- the body against the ground (roofs, bumpers, sides)
+    const pts = contacts >= 3 && up.y > 0.8 ? BUMPERS : BODY_PTS;
+    let maxPen = 0;
+    for (const lp of pts) {
+      const p = this.toWorld(lp, _a);
+      const g = W.ground(p.x, p.z);
+      if (p.y >= g) continue;
+      const nn = W.normal(p.x, p.z), nrm = _n.set(nn[0], nn[1], nn[2]);
+      const pen = (g - p.y) * nrm.y;
+      const vp = this.pointVel(p, _c), vn = vp.dot(nrm);
+      if (vn < 0) {
+        const j = -1.15 * vn / this.invMassAt(p, nrm);
+        this.applyImpulse(_b.copy(nrm).multiplyScalar(j), p);
+        this.pointVel(p, _c); _c.addScaledVector(nrm, -_c.dot(nrm));
+        const vt = _c.length();
+        if (vt > 1e-4) { _c.divideScalar(vt); const jt = Math.min(vt / this.invMassAt(p, _c), 0.55 * j); this.applyImpulse(_c.multiplyScalar(-jt), p); }
+        this.impact = Math.max(this.impact, -vn);
+      }
+      maxPen = Math.max(maxPen, pen);
+    }
+    if (maxPen > 0) this.com.y += maxPen * 0.6;
+    // ---- walls, lamp posts, parked cars
+    const fl = Math.hypot(fwd.x, fwd.z);
+    if (fl > 0.05) {
+      const fx = fwd.x / fl, fz = fwd.z / fl;
+      for (const o of [-1.35 * fl, 0, 1.35 * fl]) {
+        const cx = this.com.x + fx * o, cz = this.com.z + fz * o;
+        const above = this.com.y - COM.y - W.ground(cx, cz);
+        const push = W.pushOut(cx, cz, 0.95, { static: true, vehicle: true, above });
+        if (!push.x && !push.z) continue;
+        const pl = Math.hypot(push.x, push.z), nrm = _n.set(push.x / pl, 0, push.z / pl);
+        this.com.x += push.x * 0.8; this.com.z += push.z * 0.8;
+        const p = _a.set(cx - nrm.x * 0.95, this.com.y, cz - nrm.z * 0.95);
+        const vn = this.pointVel(p, _c).dot(nrm);
+        if (vn < 0) {
+          const j = -1.3 * vn / this.invMassAt(p, nrm);
+          this.applyImpulse(_b.copy(nrm).multiplyScalar(j), p);
+          this.pointVel(p, _c); _c.addScaledVector(nrm, -_c.dot(nrm)); _c.y = 0;
+          const vt = _c.length();
+          if (vt > 1e-4) { _c.divideScalar(vt); const jt = Math.min(vt / this.invMassAt(p, _c), 0.3 * j); this.applyImpulse(_c.multiplyScalar(-jt), p); }
+          this.impact = Math.max(this.impact, -vn);
         }
       }
     }
+    // ---- integrate
+    this.v.addScaledVector(this.v, -this.v.length() * 0.00045 * h);
+    this.w.multiplyScalar(1 - 0.15 * h);
+    this.com.addScaledVector(this.v, h);
+    _dq.set(this.w.x * h * 0.5, this.w.y * h * 0.5, this.w.z * h * 0.5, 0).multiply(q);
+    q.set(q.x + _dq.x, q.y + _dq.y, q.z + _dq.z, q.w + _dq.w).normalize();
+    return wet;
+  }
+  // R: set an overturned car back on its wheels
+  rightUp() {
+    this.place(this.pos.x, this.pos.z, this.heading);
+    this.com.y += 0.6; this.syncPos();
   }
   updateTransform(dt) {
-    const W = this.world, f = this.forward, r = new THREE.Vector2(-f.y, f.x);
-    const hw = 0.78, hl = 1.31;
-    const h = (a, b) => W.ground(this.pos.x + f.x * a + r.x * b, this.pos.z + f.y * a + r.y * b);
-    const fl = h(hl, hw), fr = h(hl, -hw), rl = h(-hl, hw), rr = h(-hl, -hw);
-    const y = (fl + fr + rl + rr) / 4;
-    const pitch = Math.atan2((fl + fr) / 2 - (rl + rr) / 2, 2 * hl);
-    const roll = Math.atan2((fr + rr) / 2 - (fl + rl) / 2, 2 * hw);
-    this.pos.y = y;
-    // body sway from acceleration and turning
-    const accelTilt = dt ? clamp(-(this.speed - (this._lastSpeed ?? this.speed)) / dt * 0.006, -0.05, 0.05) : 0;
-    this._lastSpeed = this.speed;
-    const sway = clamp(-this.yawRate * this.speed * 0.004, -0.06, 0.06);
-    this.pitch = dt ? damp(this.pitch, accelTilt, 6, dt) : 0;
-    this.roll = dt ? damp(this.roll, sway, 6, dt) : 0;
-    this.root.position.set(this.pos.x, y, this.pos.z);
-    this.root.rotation.set(0, 0, 0);
-    this.root.rotation.order = 'YXZ';
-    this.root.rotation.y = Math.PI / 2 - this.heading;
-    this.root.rotation.x = -pitch;
-    this.root.rotation.z = roll;
-    this.model.body.rotation.x = this.pitch;
-    this.model.body.rotation.z = this.roll;
-    // wheels
-    this.wheelSpin += this.speed * dt / 0.36;
-    for (const w of this.model.wheels) {
-      w.spin.rotation.x = this.wheelSpin;
+    this.root.position.copy(this.pos);
+    this.root.quaternion.copy(this.q);
+    // wheels: suspension travel, steering and spin
+    this.model.wheels.forEach((w, i) => {
+      w.g.position.y = ANCHOR_Y - Math.min(this.wheelL[i], L_MAX);
+      this.wheelSpin[i] += this.wheelV[i] * dt / WHEEL_R;
+      w.spin.rotation.x = this.wheelSpin[i];
       w.g.rotation.y = w.front ? -this.steer : 0;
-    }
+    });
     // door
     if (dt) this.doorOpen = damp(this.doorOpen, this.doorTarget, 7, dt);
     this.model.doorPivot.rotation.y = -this.doorOpen * 1.15;
     this.model.opening.visible = this.doorOpen > 0.05;
     // brake / reverse lights
-    this.model.M.tail.emissiveIntensity = this.braking ? 5 : this.lightsOn ? 1.6 : 0.15;
-    this.tailLight.intensity = this.braking ? 4 : this.lightsOn ? 1.2 : 0;
+    this.model.M.tail.emissiveIntensity = this.braking && this.engineOn ? 5 : this.lightsOn ? 1.6 : 0.15;
+    if (this.tailLight) this.tailLight.intensity = this.braking && this.engineOn ? 4 : this.lightsOn ? 1.2 : 0;
   }
   // where the driver stands to get in, world space
   doorSpot() {
@@ -387,4 +524,31 @@ export class Car {
   seatWorld(local = new THREE.Vector3(0.38, 0.6, 0.05)) {
     return local.clone().applyMatrix4(this.root.matrixWorld);
   }
+}
+
+// Two cars bumping into each other: push them apart and trade momentum. Returns the closing speed.
+export function collideCars(a, b) {
+  if (a.kinematic && b.kinematic) return 0;
+  if (Math.abs(a.com.y - b.com.y) > 1.8) return 0;
+  if (Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) > 5.6) return 0;
+  let best = null;
+  for (const ca of a.circles()) for (const cb of b.circles()) {
+    const d = Math.hypot(ca.x - cb.x, ca.z - cb.z), o = ca.r + cb.r - d;
+    if (o > 0 && (!best || o > best.o)) best = { ca, cb, d, o };
+  }
+  if (!best) return 0;
+  const { ca, cb, d, o } = best;
+  const n = new THREE.Vector3(d > 1e-4 ? (ca.x - cb.x) / d : 1, 0, d > 1e-4 ? (ca.z - cb.z) / d : 0);
+  const wa = a.kinematic ? 0 : 1, wb = b.kinematic ? 0 : 1, tot = wa + wb;
+  a.com.addScaledVector(n, o * wa / tot); b.com.addScaledVector(n, -o * wb / tot);
+  a.syncPos(); b.syncPos();
+  const p = new THREE.Vector3((ca.x + cb.x) / 2, (a.com.y + b.com.y) / 2, (ca.z + cb.z) / 2);
+  const va = a.pointVel(p, new THREE.Vector3()), vb = b.pointVel(p, new THREE.Vector3());
+  const vn = va.sub(vb).dot(n);
+  if (vn >= 0) return 0;
+  const k = (wa ? a.invMassAt(p, n) : 0) + (wb ? b.invMassAt(p, n) : 0);
+  const j = -1.3 * vn / k;
+  if (wa) { a.applyImpulse(n.clone().multiplyScalar(j), p); a.wake(); }
+  if (wb) { b.applyImpulse(n.clone().multiplyScalar(-j), p); b.wake(); }
+  return -vn;
 }

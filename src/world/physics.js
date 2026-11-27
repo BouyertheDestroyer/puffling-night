@@ -51,6 +51,8 @@ export function createWorld(L, town) {
     let tx = 0, tz = 0;
     for (const o of scratch) {
       if (o.disabled) continue;
+      if (opts.vehicle && o.fence) continue; // cars smash through the cliff-top fence
+      if (o.top !== undefined && opts.above > o.top) continue; // jumped or flew over it
       if (opts.boxesOnly && (o.type !== 'box' || (o.parked && opts.above > 1.5))) continue;
       const p = o.type === 'box' ? pushCircleBox(x + tx, z + tz, r, o) : pushCircleCircle(x + tx, z + tz, r, o);
       if (p) { tx += p.x; tz += p.z; }
